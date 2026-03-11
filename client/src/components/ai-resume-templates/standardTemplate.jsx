@@ -2,12 +2,15 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
+import useResumeBodyStyle from "../../hooks/useResumeBodyStyle";
 
 const Template20 = () => {
   const resumeRef = useRef(null);
   const { resumeData, setResumeData } = useResume();
   const [editMode, setEditMode] = useState(false);
   const [localData, setLocalData] = useState(resumeData);
+
+  const resumeBodyStyle = useResumeBodyStyle();
 
   useEffect(() => {
     setLocalData(resumeData);
@@ -75,6 +78,7 @@ const Template20 = () => {
               border: `1px solid #cbd5e1`,
               boxSizing: "border-box",
               pageBreakAfter: "always",
+              ...resumeBodyStyle,
             }}
           >
             {/* Insert all the section code from Template8, replacing colors with accentColor and primaryColor as appropriate */}

@@ -2,14 +2,16 @@ import React, { useState, useRef, useEffect } from "react";
 import Navbar from "../Navbar/Navbar";
 import Sidebar from "../Sidebar/Sidebar";
 import { useResume } from "../../context/ResumeContext";
-import { FaPhoneAlt, FaEnvelope, FaLinkedin, FaMapMarkerAlt, FaGithub } from "react-icons/fa";
+import { FaPhoneAlt, FaEnvelope, FaLinkedin, FaMapMarkerAlt } from "react-icons/fa";
+import useResumeBodyStyle from "../../hooks/useResumeBodyStyle";
 
 const Template20 = () => {
   const resumeRef = useRef(null);
-  // const { resumeData, setResumeData } = useResume();
-  const { resumeData, updateResumeData } = useResume();
+  const { resumeData, setResumeData } = useResume();
   const [editMode, setEditMode] = useState(false);
   const [localData, setLocalData] = useState(resumeData || {});
+
+  const resumeBodyStyle = useResumeBodyStyle();
 
   useEffect(() => {
     setLocalData(resumeData || {});
@@ -22,8 +24,7 @@ const Template20 = () => {
   };
 
   const handleSave = () => {
-    // setResumeData(localData);
-    updateResumeData(localData);
+    setResumeData(localData);
     setEditMode(false);
   };
 
@@ -77,13 +78,13 @@ const Template20 = () => {
   //   resumeData.certificates.length > 0;
 
   const hasCertificates =
-    Array.isArray(resumeData?.certificates) &&
-    resumeData.certificates.some(
-      (c) =>
-        (c?.title && c.title.trim() !== "") ||
-        (c?.issuer && c.issuer.trim() !== "") ||
-        (c?.date && c.date.trim() !== "")
-    );
+  Array.isArray(resumeData?.certificates) &&
+  resumeData.certificates.some(
+    (c) =>
+      (c?.title && c.title.trim() !== "") ||
+      (c?.issuer && c.issuer.trim() !== "") ||
+      (c?.date && c.date.trim() !== "")
+  );
 
   const hasAchievements =
     Array.isArray(resumeData?.achievements) &&
@@ -93,46 +94,45 @@ const Template20 = () => {
     resumeData?.phone ||
     resumeData?.email ||
     resumeData?.linkedin ||
-    resumeData?.location ||
-    resumeData?.github;
+    resumeData?.location;
 
   // ---------- lists for edit / view ----------
   const educationList = editMode
     ? (localData.education && localData.education.length > 0
-      ? localData.education
-      : [{ degree: "", duration: "", institution: "", location: "" }])
+        ? localData.education
+        : [{ degree: "", duration: "", institution: "", location: "" }])
     : (resumeData.education || []);
 
   const experienceList = editMode
     ? (localData.experience && localData.experience.length > 0
-      ? localData.experience
-      : [
-        {
-          title: "",
-          date: "",
-          companyName: "",
-          companyLocation: "",
-          accomplishment: [],
-        },
-      ])
+        ? localData.experience
+        : [
+            {
+              title: "",
+              date: "",
+              companyName: "",
+              companyLocation: "",
+              accomplishment: [],
+            },
+          ])
     : (resumeData.experience || []);
 
   const languagesList = editMode
     ? (localData.languages && localData.languages.length > 0
-      ? localData.languages
-      : [{ language: "", proficiency: "" }])
+        ? localData.languages
+        : [{ language: "", proficiency: "" }])
     : (resumeData.languages || []);
 
   const certificatesList = editMode
     ? (localData.certificates && localData.certificates.length > 0
-      ? localData.certificates
-      : [{ title: "", issuer: "", date: "" }])
+        ? localData.certificates
+        : [{ title: "", issuer: "", date: "" }])
     : (resumeData.certificates || []);
 
   const achievementsList = editMode
     ? (localData.achievements && localData.achievements.length > 0
-      ? localData.achievements
-      : [""])
+        ? localData.achievements
+        : [""])
     : (resumeData.achievements || []);
 
   // ---------- add-more handlers ----------
@@ -176,8 +176,7 @@ const Template20 = () => {
     <div style={{ minHeight: "100vh" }}>
       <Navbar />
       <div style={{ display: "flex" }}>
-        {/* <Sidebar onEnhance={handleEnhance} resumeRef={resumeRef} /> */}
-        <Sidebar templateKey="template20" onEnhance={handleEnhance}/>
+        <Sidebar onEnhance={handleEnhance} resumeRef={resumeRef} />
         <div
           style={{
             flexGrow: 1,
@@ -198,6 +197,7 @@ const Template20 = () => {
               padding: "2.5rem",
               border: "3px solid #22c55e",
               borderRadius: "1rem",
+              ...resumeBodyStyle,
             }}
           >
             {/* HEADER */}
@@ -291,14 +291,7 @@ const Template20 = () => {
                     <span
                       style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
                     >
-                      <FaLinkedin color="#2563eb" />
-                      {editMode ? (
-                        <span>{resumeData.linkedin}</span>
-                      ) : (
-                        <a href={resumeData.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                          {resumeData.linkedin}
-                        </a>
-                      )}
+                      <FaLinkedin color="#2563eb" /> {resumeData.linkedin}
                     </span>
                   )}
                   {(editMode || resumeData.location) && (
@@ -306,20 +299,6 @@ const Template20 = () => {
                       style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
                     >
                       <FaMapMarkerAlt color="#059669" /> {resumeData.location}
-                    </span>
-                  )}
-                  {(editMode || resumeData.github) && (
-                    <span
-                      style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
-                    >
-                      <FaGithub color="#000000" />
-                      {editMode ? (
-                        <span>{resumeData.github}</span>
-                      ) : (
-                        <a href={resumeData.github} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                          {resumeData.github}
-                        </a>
-                      )}
                     </span>
                   )}
                 </div>

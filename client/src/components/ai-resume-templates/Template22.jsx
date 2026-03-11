@@ -4,63 +4,32 @@ import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
 import { MapPin, Phone, Mail, Linkedin, Github, Globe } from "lucide-react";
 import resumeService from "../../services/resumeService";
+import useResumeBodyStyle from "../../hooks/useResumeBodyStyle";
 
 
 // Helper functions to check if sections have meaningful content (not just placeholders)
 const hasContent = {
-  certifications: (data) =>
-    data.certifications &&
-    data.certifications.length > 0 &&
-    data.certifications.some(
-      (cert) =>
-        (typeof cert.title === "string" &&
-          cert.title.trim() !== "" &&
-          cert.title !== "Certification Title") ||
-        (typeof cert.issuer === "string" &&
-          cert.issuer.trim() !== "" &&
-          cert.issuer !== "Issuing Organization") ||
-        (typeof cert.date === "string" &&
-          cert.date.trim() !== "" &&
-          cert.date !== "MM/YYYY")
+  certifications: (data) => data.certifications && data.certifications.length > 0 &&
+    data.certifications.some(cert =>
+      (cert.title?.trim() && cert.title !== "Certification Title") ||
+      (cert.issuer?.trim() && cert.issuer !== "Issuing Organization") ||
+      (cert.date?.trim() && cert.date !== "MM/YYYY")
     ),
-
-  achievements: (data) =>
-    data.achievements &&
-    data.achievements.length > 0 &&
-    data.achievements.some(
-      (item) =>
-        typeof item === "string" &&
-        item.trim() !== "" &&
-        item !== "New Achievement"
-    ),
-
-  languages: (data) =>
-    data.languages &&
-    data.languages.length > 0 &&
-    data.languages.some(
-      (lang) =>
-        typeof lang === "string" &&
-        lang.trim() !== "" &&
-        lang !== "New Language"
-    ),
-
-  interests: (data) =>
-    data.interests &&
-    data.interests.length > 0 &&
-    data.interests.some(
-      (int) =>
-        typeof int === "string" &&
-        int.trim() !== "" &&
-        int !== "New Interest"
-    ),
+  achievements: (data) => data.achievements && data.achievements.length > 0 &&
+    data.achievements.some(item => item?.trim() && item !== "New Achievement"),
+  languages: (data) => data.languages && data.languages.length > 0 &&
+    data.languages.some(lang => lang?.trim() && lang !== "New Language"),
+  interests: (data) => data.interests && data.interests.length > 0 &&
+    data.interests.some(int => int?.trim() && int !== "New Interest"),
 };
-
 
 const Template22 = () => {
   const resumeRef = useRef(null);
   const { resumeData, setResumeData } = useResume();
   const [editMode, setEditMode] = useState(false);
   const [localData, setLocalData] = useState(resumeData);
+
+  const resumeBodyStyle = useResumeBodyStyle();
 
   useEffect(() => {
     setLocalData(resumeData);
@@ -601,61 +570,16 @@ const Template22 = () => {
                     >
                       <Icon size={16} style={{ marginRight: 6 }} />
                       {editMode ? (
-  <input
-    value={localData[field] || ""}
-    onChange={(e) => handleFieldChange(field, e.target.value)}
-    style={{ width: "100%" }}
-  />
-) : field === "email" ? (
- <a
-  href={`mailto:${resumeData[field]}`}
-  style={{
-    color: "#2563eb",
-    textDecoration: "underline",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-    fontSize: "0.85rem",
-  }}
-  onMouseEnter={(e) => {
-    e.target.style.color = "#1d4ed8";
-  }}
-  onMouseLeave={(e) => {
-    e.target.style.color = "#2563eb";
-  }}
->
-  {resumeData[field]}
-</a>
-
-) : field === "linkedin" || field === "github" || field === "portfolio" ? (
- <a
-  href={
-    field === "portfolio" && !resumeData[field]?.startsWith("http")
-      ? `https://${resumeData[field]}`
-      : resumeData[field]
-  }
-  target="_blank"
-  rel="noopener noreferrer"
-  style={{
-    color: "#2563eb",          // blue
-    textDecoration: "underline",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-    fontSize: "0.85rem",
-  }}
-  onMouseEnter={(e) => {
-    e.target.style.color = "#1d4ed8";   // darker blue
-  }}
-  onMouseLeave={(e) => {
-    e.target.style.color = "#2563eb";
-  }}
->
-  {resumeData[field]}
-</a>
-
-) : (
-  resumeData[field]
-)}
-
+                        <input
+                          value={localData[field] || ""}
+                          onChange={(e) =>
+                            handleFieldChange(field, e.target.value)
+                          }
+                          style={{ width: "100%" }}
+                        />
+                      ) : (
+                        resumeData[field]
+                      )}
                     </p>
                   ))}
                 </div>
