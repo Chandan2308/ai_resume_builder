@@ -3,6 +3,7 @@ import React, {
   useRef, 
   useEffect 
 } from "react";
+import useUndoRedo from "../../hooks/useUndoRedo";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
@@ -39,7 +40,14 @@ const Template13 = () => {
   } = useResume();
   
   const [editMode, setEditMode] = useState(false);
-  const [localData, setLocalData] = useState(resumeData || {});
+  const {
+    state: localData,
+    setState: setLocalData,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoRedo(resumeData || {});
 
   const [templateSettings, setTemplateSettings] = useState({
     fontFamily: "'Inter', sans-serif",
@@ -636,12 +644,31 @@ const Template13 = () => {
       <Navbar />
       <div className="flex">
         <Sidebar 
-          templateKey="template13"
           onDownload={handleDownload} 
           onSave={handleSave} 
           resumeRef={resumeRef} 
         />
-        <div className="flex-grow p-8 flex flex-col items-center pb-24">
+        
+          {/* Undo/Redo Buttons */}
+          <div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}} data-pdf-hide="true">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              style={{padding: "8px 16px", background: canUndo ? "#4f46e5" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canUndo ? "pointer" : "not-allowed"}}
+              title="Undo"
+            >
+              ↩ Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              style={{padding: "8px 16px", background: canRedo ? "#0891b2" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canRedo ? "pointer" : "not-allowed"}}
+              title="Redo"
+            >
+              Redo ↪
+            </button>
+          </div>
+<div className="flex-grow p-8 flex flex-col items-center pb-24">
           <div 
             ref={resumeRef} 
             style={{ 
@@ -728,7 +755,7 @@ const Template13 = () => {
                     className="bg-transparent border-b border-gray-600" 
                   />
                 ) : (
-                  <span>{localData.email}</span>
+                  <a href={`mailto:${localData.email}`} style={{color:"inherit"}} target="_blank" rel="noopener noreferrer">{localData.email}</a>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -764,7 +791,7 @@ const Template13 = () => {
                     className="bg-transparent border-b border-gray-600" 
                   />
                 ) : (
-                  <a href={localData.linkedin} className="hover:underline">
+                  <a href={(localData.linkedin && !/^https?:\/\//i.test(localData.linkedin)) ? `https://\${localData.linkedin} target="_blank" rel="noopener noreferrer"` : localData.linkedin} className="hover:underline">
                     LinkedIn Profile
                   </a>
                 )}

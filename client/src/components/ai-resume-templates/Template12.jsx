@@ -1,3 +1,4 @@
+import useUndoRedo from "../../hooks/useUndoRedo";
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
 import Sidebar from "../Sidebar/Sidebar";
@@ -70,78 +71,98 @@ const TemplateNew = () => {
   const resumeData = resumeContext?.resumeData || {};
   const updateResumeData = resumeContext?.updateResumeData;
   const sectionOrder = resumeContext?.sectionOrder || [];
+// Default data structure
+const defaultData = {
+  name: "ELLA BROOKS",
+  role: "FULL STACK DEVELOPER",
+  email: "ellabrooks@gmail.com",
+  phone: "+1 234 567 8900",
+  location: "Chennai, India",
+  linkedin: "linkedin.com/in/ella",
+  github: "github.com/ella",
+  portfolio: "ellabrooks.dev",
+  summary: "Write a compelling professional summary highlighting your key strengths and career goals...",
+  experience: [
+    {
+      title: "Frontend Intern",
+      company: "Google",
+      duration: "2022 – 2023",
+      description:
+        "Developed and maintained web applications using React and TypeScript. Collaborated with cross-functional teams to deliver high-quality features.",
+    },
+  ],
+  education: [
+    {
+      degree: "BE in Computer Science",
+      institution: "Bluefield University",
+      year: "2017 – 2021",
+    },
+  ],
+  skills: [
+    "Front and Backend Development",
+    "React.js / JavaScript",
+    "Node.js / Express.js",
+    "Git & REST APIs",
+  ],
+  projects: [
+    {
+      name: "Portfolio Website",
+      description:
+        "Developed with React and Tailwind to showcase skills and projects professionally.",
+    },
+  ],
+  certifications: [
+    {
+      name: "AWS Cloud Practitioner",
+      title: "AWS Cloud Practitioner",
+    },
+  ],
+  achievements: ["Achievement 1", "Achievement 2"],
+  languages: [
+    { language: "English", proficiency: 6 },
+    { language: "French", proficiency: 4 },
+    { language: "Spanish", proficiency: 3 },
+  ],
+  interests: ["Travelling", "Books", "Photography"],
+  templateId: 16,
+};
 
-  const [localData, setLocalData] = useState(null);
-  const [editMode, setEditMode] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("");
-  const [isSavingToDatabase, setIsSavingToDatabase] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isPreviewing, setIsPreviewing] = useState(false);
+// Initialize Undo/Redo system
+const {
+  state: localData,
+  setState: setLocalData,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
+} = useUndoRedo(defaultData);
 
-  // Initialize with default data if empty
-  useEffect(() => {
-    if (resumeData && Object.keys(resumeData).length > 0) {
-      setLocalData(JSON.parse(JSON.stringify(resumeData)));
-    } else {
-      // Default data structure
-      const defaultData = {
-        name: "ELLA BROOKS",
-        role: "FULL STACK DEVELOPER",
-        email: "ellabrooks@gmail.com",
-        phone: "+1 234 567 8900",
-        location: "Chennai, India",
-        linkedin: "linkedin.com/in/ella",
-        github: "github.com/ella",
-        portfolio: "ellabrooks.dev",
-        summary: "Write a compelling professional summary highlighting your key strengths and career goals...",
-        experience: [
-          {
-            title: "Frontend Intern",
-            company: "Google",
-            duration: "2022 – 2023",
-            description: "Developed and maintained web applications using React and TypeScript. Collaborated with cross-functional teams to deliver high-quality features."
-          }
-        ],
-        education: [
-          {
-            degree: "BE in Computer Science",
-            institution: "Bluefield University",
-            year: "2017 – 2021"
-          }
-        ],
-        skills: ["Front and Backend Development", "React.js / JavaScript", "Node.js / Express.js", "Git & REST APIs"],
-        projects: [
-          {
-            name: "Portfolio Website",
-            description: "Developed with React and Tailwind to showcase skills and projects professionally."
-          }
-        ],
-        certifications: [
-          {
-            name: "AWS Cloud Practitioner",
-            title: "AWS Cloud Practitioner"
-          }
-        ],
-        achievements: ["Achievement 1", "Achievement 2"],
-        languages: [
-          { language: "English", proficiency: 6 },
-          { language: "French", proficiency: 4 },
-          { language: "Spanish", proficiency: 3 }
-        ],
-        interests: ["Travelling", "Books", "Photography"],
-        templateId: 16
-      };
-      setLocalData(defaultData);
-    }
-  }, [resumeData]);
+const [editMode, setEditMode] = useState(false);
+const [saveStatus, setSaveStatus] = useState("");
+const [isSavingToDatabase, setIsSavingToDatabase] = useState(false);
+const [isDownloading, setIsDownloading] = useState(false);
+const [isPreviewing, setIsPreviewing] = useState(false);
 
-  const handleFieldChange = (field, value) => {
-    if (!localData) return;
-    const updated = { ...localData, [field]: value };
-    setLocalData(updated);
-    localStorage.setItem("resumeData", JSON.stringify(updated));
-  };
+// Sync with resumeData from context
+useEffect(() => {
+  if (resumeData && Object.keys(resumeData).length > 0) {
+    setLocalData(JSON.parse(JSON.stringify(resumeData)));
+  }
+}, [resumeData]);
 
+// Sync to localStorage automatically (handles undo/redo too)
+useEffect(() => {
+  if (localData) {
+    localStorage.setItem("resumeData", JSON.stringify(localData));
+  }
+}, [localData]);
+
+// Handle simple field changes
+const handleFieldChange = (field, value) => {
+  if (!localData) return;
+  const updated = { ...localData, [field]: value };
+  setLocalData(updated);
+};
   // Handle nested personal info fields
   const handlePersonalInfoChange = (field, value) => {
     if (!localData) return;
@@ -1263,7 +1284,6 @@ const TemplateNew = () => {
         <Navbar />
         <div style={{ display: "flex" }}>
           <Sidebar 
-            templateKey="template12"
             onEnhance={handleEnhance} 
             resumeRef={resumeRef}
             onDownload={handleDownload}
@@ -1271,7 +1291,23 @@ const TemplateNew = () => {
             isDownloading={isDownloading}
             isPreviewing={isPreviewing}
           />
-
+{/* Undo/Redo Buttons */}
+<div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}}>
+  <button
+    onClick={undo}
+    disabled={!canUndo}
+    style={{padding: "8px 16px", background: "red", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", opacity: canUndo ? 1 : 0.4}}
+  >
+    ↩ Undo
+  </button>
+  <button
+    onClick={redo}
+    disabled={!canRedo}
+    style={{padding: "8px 16px", background: "blue", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", opacity: canRedo ? 1 : 0.4}}
+  >
+    Redo ↪
+  </button>
+</div>
           <div
             style={{
               flexGrow: 1,
@@ -1447,6 +1483,7 @@ const TemplateNew = () => {
                                 >
                                   ✕
                                 </button>
+
                               )}
                             </div>
                             {/* Portfolio field */}
