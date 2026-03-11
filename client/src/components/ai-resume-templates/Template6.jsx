@@ -22,6 +22,7 @@ import {
   faGithub 
 } from "@fortawesome/free-brands-svg-icons";
 import { toast } from 'react-toastify';
+import useUndoRedo from "../../hooks/useUndoRedo";
 
 // 🔹 Helpers from config
 import { 
@@ -56,10 +57,37 @@ const Template6 = () => {
 
   // --- STATE ---
   const [editMode, setEditMode] = useState(false);
-  const [localData, setLocalData] = useState(resumeData || {});
+  // const [localData, setLocalData] = useState(resumeData || {});
+  const {
+  state: localData,
+  setState: setLocalData,
+  undo,
+  redo,
+  canUndo,
+  canRedo
+} = useUndoRedo(resumeData || {});
+
   const [headingColor, setHeadingColor] = useState("#2563eb");
   const colorInputRef = useRef(null);
   const photoInputRef = useRef(null);
+
+  const handleUndo = () => {
+  if (!canUndo) {
+    toast.info("Nothing to undo");
+    return;
+  }
+  undo();
+  toast.success("Undo applied");
+};
+
+const handleRedo = () => {
+  if (!canRedo) {
+    toast.info("Nothing to redo");
+    return;
+  }
+  redo();
+  toast.success("Redo applied");
+};
 
   useEffect(() => {
     if (resumeData) {
@@ -986,54 +1014,93 @@ const Template6 = () => {
               }}
             >
               {editMode ? (
-                <div 
-                  style={{ 
-                    display: "flex", 
-                    justifyContent: "center", 
-                    gap: "15px" 
-                  }}
-                >
-                  <button 
-                    onClick={() => colorInputRef.current.click()} 
-                    style={{ 
-                      background: headingColor, 
-                      color: "white", 
-                      padding: "10px 20px", 
-                      borderRadius: "4px", 
-                      border: "none", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Pick Color
-                  </button>
-                  <button 
-                    onClick={handleSave} 
-                    style={{ 
-                      background: "#10b981", 
-                      color: "white", 
-                      padding: "10px 30px", 
-                      borderRadius: "4px", 
-                      border: "none", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button 
-                    onClick={handleCancel} 
-                    style={{ 
-                      background: "#6b7280", 
-                      color: "white", 
-                      padding: "10px 30px", 
-                      borderRadius: "4px", 
-                      border: "none", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
+  <div 
+    style={{ 
+      display: "flex", 
+      justifyContent: "center", 
+      gap: "15px" 
+    }}
+  >
+
+    {/* Pick Color */}
+    <button 
+      onClick={() => colorInputRef.current.click()} 
+      style={{ 
+        background: headingColor, 
+        color: "white", 
+        padding: "10px 20px", 
+        borderRadius: "4px", 
+        border: "none", 
+        cursor: "pointer" 
+      }}
+    >
+      Pick Color
+    </button>
+
+    {/* Save */}
+    <button 
+      onClick={handleSave} 
+      style={{ 
+        background: "#10b981", 
+        color: "white", 
+        padding: "10px 30px", 
+        borderRadius: "4px", 
+        border: "none", 
+        cursor: "pointer" 
+      }}
+    >
+      Save
+    </button>
+
+    {/* Undo */}
+    <button 
+      onClick={handleUndo}
+      disabled={!canUndo}
+      style={{ 
+        background: canUndo ? "#f59e0b" : "#9ca3af",
+        color: "white", 
+        padding: "10px 30px", 
+        borderRadius: "4px", 
+        border: "none", 
+        cursor: canUndo ? "pointer" : "not-allowed"
+      }}
+    >
+      Undo
+    </button>
+
+    {/* Redo */}
+    <button 
+      onClick={handleRedo}
+      disabled={!canRedo}
+      style={{ 
+        background: canRedo ? "#8b5cf6" : "#9ca3af",
+        color: "white", 
+        padding: "10px 30px", 
+        borderRadius: "4px", 
+        border: "none", 
+        cursor: canRedo ? "pointer" : "not-allowed"
+      }}
+    >
+      Redo
+    </button>
+
+    {/* Cancel */}
+    <button 
+      onClick={handleCancel} 
+      style={{ 
+        background: "#6b7280", 
+        color: "white", 
+        padding: "10px 30px", 
+        borderRadius: "4px", 
+        border: "none", 
+        cursor: "pointer" 
+      }}
+    >
+      Cancel
+    </button>
+
+  </div>
+) : (
                 <button 
                   onClick={() => setEditMode(true)} 
                   style={{ 

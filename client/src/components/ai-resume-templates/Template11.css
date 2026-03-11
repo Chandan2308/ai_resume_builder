@@ -1,0 +1,194 @@
+/* ========================= */
+/* PAGE LAYOUT */
+/* ========================= */
+
+.template11-wrapper {
+  background: #eef1f5;
+  min-height: 100vh;
+}
+
+.layout {
+  display: flex;
+}
+
+.preview-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+/* ========================= */
+/* RESUME PAPER */
+/* ========================= */
+
+.resume-paper {
+  width: 794px;
+  min-height: 1123px;
+  background: #ffffff;
+  padding: 55px 60px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  font-family: "Calibri", "Segoe UI", sans-serif;
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+/* ========================= */
+/* HEADER */
+/* ========================= */
+
+.resume-header {
+  text-align: center;
+  margin-bottom: 35px;
+}
+
+.resume-name {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border: none;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.resume-role {
+  font-size: 15px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.contact-grid {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+/* ========================= */
+/* SECTIONS */
+/* ========================= */
+
+.resume-section {
+  margin-bottom: 22px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #111827;
+  border-bottom: 1px solid #d1d5db;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+
+.resume-section p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.block {
+  margin-bottom: 8px;
+}
+
+.block strong {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+/* ========================= */
+/* EDIT MODE CLEAN STYLE */
+/* ========================= */
+
+.edit-name {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 30px;
+  font-weight: 700;
+  text-align: center;
+  background: transparent;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 4px;
+}
+
+.edit-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 3px 0;
+}
+
+textarea.edit-input {
+  resize: none;
+  min-height: 50px;
+}
+
+.edit-input:focus,
+.edit-name:focus {
+  border-bottom: 1px solid #111827;
+}
+
+/* ========================= */
+/* ACTION BUTTONS */
+/* ========================= */
+
+.action-buttons {
+  margin-top: 45px;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
+.edit-btn,
+.save-btn,
+.cancel-btn {
+  padding: 9px 24px;
+  border-radius: 4px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.edit-btn {
+  background: #111827;
+  color: #ffffff;
+}
+
+.edit-btn:hover {
+  background: #000000;
+}
+
+.save-btn {
+  background: #059669;
+  color: #ffffff;
+}
+
+.save-btn:hover {
+  background: #047857;
+}
+
+.cancel-btn {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.cancel-btn:hover {
+  background: #b91c1c;
+}
+.preview-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #eef1f5;
+  padding: 40px 0;
+}

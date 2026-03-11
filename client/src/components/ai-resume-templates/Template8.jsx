@@ -9,6 +9,7 @@ import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
 import { toast } from 'react-toastify';
 import html2pdf from "html2pdf.js";
+import useUndoRedo from "../../hooks/useUndoRedo";
 
 // 🔹 Helpers from config
 import { 
@@ -36,7 +37,33 @@ const Template8 = () => {
   } = useResume();
   
   const [editMode, setEditMode] = useState(false);
-  const [localData, setLocalData] = useState(resumeData || {});
+  // const [localData, setLocalData] = useState(resumeData || {});
+  const {
+  state: localData,
+  setState: setLocalData,
+  undo,
+  redo,
+  canUndo,
+  canRedo
+} = useUndoRedo(resumeData || {});
+
+const handleUndo = () => {
+  if (!canUndo) {
+    toast.info("Nothing to undo");
+    return;
+  }
+  undo();
+  toast.success("Undo applied");
+};
+
+const handleRedo = () => {
+  if (!canRedo) {
+    toast.info("Nothing to redo");
+    return;
+  }
+  redo();
+  toast.success("Redo applied");
+};
 
   useEffect(() => {
     if (resumeData) {
@@ -757,41 +784,78 @@ const Template8 = () => {
               }}
             >
               {editMode ? (
-                <div 
-                  style={{ 
-                    display: "flex", 
-                    justifyContent: "center", 
-                    gap: "10px" 
-                  }}
-                >
-                  <button 
-                    onClick={handleSave} 
-                    style={{ 
-                      backgroundColor: "#16a34a", 
-                      color: "white", 
-                      padding: "0.5rem 1rem", 
-                      border: "none", 
-                      borderRadius: "4px", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button 
-                    onClick={handleCancel} 
-                    style={{ 
-                      backgroundColor: "#9ca3af", 
-                      color: "white", 
-                      padding: "0.5rem 1rem", 
-                      border: "none", 
-                      borderRadius: "4px", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
+  <div 
+    style={{ 
+      display: "flex", 
+      justifyContent: "center", 
+      gap: "10px" 
+    }}
+  >
+
+    {/* Save */}
+    <button 
+      onClick={handleSave} 
+      style={{ 
+        backgroundColor: "#16a34a", 
+        color: "white", 
+        padding: "0.5rem 1rem", 
+        border: "none", 
+        borderRadius: "4px", 
+        cursor: "pointer" 
+      }}
+    >
+      Save
+    </button>
+
+    {/* Undo */}
+    <button
+      onClick={handleUndo}
+      disabled={!canUndo}
+      style={{
+        backgroundColor: canUndo ? "#f59e0b" : "#9ca3af",
+        color: "white",
+        padding: "0.5rem 1rem",
+        border: "none",
+        borderRadius: "4px",
+        cursor: canUndo ? "pointer" : "not-allowed"
+      }}
+    >
+      Undo
+    </button>
+
+    {/* Redo */}
+    <button
+      onClick={handleRedo}
+      disabled={!canRedo}
+      style={{
+        backgroundColor: canRedo ? "#8b5cf6" : "#9ca3af",
+        color: "white",
+        padding: "0.5rem 1rem",
+        border: "none",
+        borderRadius: "4px",
+        cursor: canRedo ? "pointer" : "not-allowed"
+      }}
+    >
+      Redo
+    </button>
+
+    {/* Cancel */}
+    <button 
+      onClick={handleCancel} 
+      style={{ 
+        backgroundColor: "#9ca3af", 
+        color: "white", 
+        padding: "0.5rem 1rem", 
+        border: "none", 
+        borderRadius: "4px", 
+        cursor: "pointer" 
+      }}
+    >
+      Cancel
+    </button>
+
+  </div>
+) : (
                 <button 
                   onClick={() => setEditMode(true)} 
                   style={{ 

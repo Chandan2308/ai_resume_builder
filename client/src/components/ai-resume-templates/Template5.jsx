@@ -9,6 +9,7 @@ import Sidebar from "../Sidebar/Sidebar";
 import { useResume } from "../../context/ResumeContext";
 import { toast } from 'react-toastify';
 import html2pdf from "html2pdf.js";
+import useUndoRedo from "../../hooks/useUndoRedo";
 
 // 🔹 Helpers from config
 import { 
@@ -29,7 +30,33 @@ const Template5 = () => {
   } = useResume() || {};
 
   const [editMode, setEditMode] = useState(false);
-  const [localData, setLocalData] = useState(resumeData || {});
+  // const [localData, setLocalData] = useState(resumeData || {});
+  const {
+  state: localData,
+  setState: setLocalData,
+  undo,
+  redo,
+  canUndo,
+  canRedo
+} = useUndoRedo(resumeData || {});
+
+const handleUndo = () => {
+  if (!canUndo) {
+    toast.info("Nothing to undo");
+    return;
+  }
+  undo();
+  toast.success("Undo applied");
+};
+
+const handleRedo = () => {
+  if (!canRedo) {
+    toast.info("Nothing to redo");
+    return;
+  }
+  redo();
+  toast.success("Redo applied");
+};
 
   useEffect(() => {
     if (resumeData) {
@@ -875,43 +902,80 @@ const Template5 = () => {
               }}
             >
               {editMode ? (
-                <div 
-                  style={{ 
-                    display: "flex", 
-                    justifyContent: "center", 
-                    gap: "15px" 
-                  }}
-                >
-                  <button 
-                    onClick={handleSave} 
-                    style={{ 
-                      backgroundColor: "#10b981", 
-                      color: "white", 
-                      padding: "10px 25px", 
-                      borderRadius: "6px", 
-                      border: "none", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}
-                  >
-                    Save Changes
-                  </button>
-                  <button 
-                    onClick={handleCancel} 
-                    style={{ 
-                      backgroundColor: "#6b7280", 
-                      color: "white", 
-                      padding: "10px 25px", 
-                      borderRadius: "6px", 
-                      border: "none", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
+  <div 
+    style={{ 
+      display: "flex", 
+      justifyContent: "center", 
+      gap: "15px" 
+    }}
+  >
+    {/* Save */}
+    <button 
+      onClick={handleSave} 
+      style={{ 
+        backgroundColor: "#10b981", 
+        color: "white", 
+        padding: "10px 25px", 
+        borderRadius: "6px", 
+        border: "none", 
+        cursor: "pointer", 
+        fontWeight: "bold" 
+      }}
+    >
+      Save Changes
+    </button>
+
+    {/* Undo */}
+    <button 
+      onClick={handleUndo}
+      disabled={!canUndo}
+      style={{ 
+        backgroundColor: canUndo ? "#f59e0b" : "#9ca3af",
+        color: "white", 
+        padding: "10px 25px", 
+        borderRadius: "6px", 
+        border: "none", 
+        cursor: canUndo ? "pointer" : "not-allowed", 
+        fontWeight: "bold" 
+      }}
+    >
+      Undo
+    </button>
+
+    {/* Redo */}
+    <button 
+      onClick={handleRedo}
+      disabled={!canRedo}
+      style={{ 
+        backgroundColor: canRedo ? "#8b5cf6" : "#9ca3af",
+        color: "white", 
+        padding: "10px 25px", 
+        borderRadius: "6px", 
+        border: "none", 
+        cursor: canRedo ? "pointer" : "not-allowed", 
+        fontWeight: "bold" 
+      }}
+    >
+      Redo
+    </button>
+
+    {/* Cancel */}
+    <button 
+      onClick={handleCancel} 
+      style={{ 
+        backgroundColor: "#6b7280", 
+        color: "white", 
+        padding: "10px 25px", 
+        borderRadius: "6px", 
+        border: "none", 
+        cursor: "pointer", 
+        fontWeight: "bold" 
+      }}
+    >
+      Cancel
+    </button>
+  </div>
+) : (
                 <button 
                   onClick={() => setEditMode(true)} 
                   style={{ 

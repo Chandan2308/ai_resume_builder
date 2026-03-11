@@ -11,6 +11,7 @@ import { useAuth } from "../../context/AuthContext";
 import resumeService from "../../services/resumeService";
 import { toast } from "react-toastify";
 import html2pdf from "html2pdf.js";
+import useUndoRedo from "../../hooks/useUndoRedo";
 import { 
   Plus, 
   Trash2 
@@ -38,17 +39,53 @@ const Template10 = () => {
   const { isAuthenticated } = useAuth();
   const [editMode, setEditMode] = useState(false);
   
-  const [localData, setLocalData] = useState(() => ({
-    ...resumeData,
-    skills: resumeData?.skills || [],
-    experience: resumeData?.experience || [],
-    education: resumeData?.education || [],
-    projects: resumeData?.projects || [],
-    certifications: resumeData?.certifications || [],
-    achievements: resumeData?.achievements || [],
-    languages: resumeData?.languages || [],
-    interests: resumeData?.interests || []
-  }));
+  // const [localData, setLocalData] = useState(() => ({
+  //   ...resumeData,
+  //   skills: resumeData?.skills || [],
+  //   experience: resumeData?.experience || [],
+  //   education: resumeData?.education || [],
+  //   projects: resumeData?.projects || [],
+  //   certifications: resumeData?.certifications || [],
+  //   achievements: resumeData?.achievements || [],
+  //   languages: resumeData?.languages || [],
+  //   interests: resumeData?.interests || []
+  // }));
+  const {
+  state: localData,
+  setState: setLocalData,
+  undo,
+  redo,
+  canUndo,
+  canRedo
+} = useUndoRedo({
+  ...resumeData,
+  skills: resumeData?.skills || [],
+  experience: resumeData?.experience || [],
+  education: resumeData?.education || [],
+  projects: resumeData?.projects || [],
+  certifications: resumeData?.certifications || [],
+  achievements: resumeData?.achievements || [],
+  languages: resumeData?.languages || [],
+  interests: resumeData?.interests || []
+});
+
+  const handleUndo = () => {
+  if (!canUndo) {
+    toast.info("Nothing to undo");
+    return;
+  }
+  undo();
+  toast.success("Undo applied");
+};
+
+const handleRedo = () => {
+  if (!canRedo) {
+    toast.info("Nothing to redo");
+    return;
+  }
+  redo();
+  toast.success("Redo applied");
+};
 
   useEffect(() => {
     if (resumeData) {
@@ -780,41 +817,78 @@ const Template10 = () => {
               }}
             >
               {editMode ? (
-                <div 
-                  style={{ 
-                    display: "flex", 
-                    justifyContent: "center", 
-                    gap: "1rem" 
-                  }}
-                >
-                  <button 
-                    onClick={handleSave} 
-                    style={{ 
-                      backgroundColor: "#10b981", 
-                      color: "white", 
-                      padding: "10px 30px", 
-                      borderRadius: "5px", 
-                      border: "none", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button 
-                    onClick={handleCancel} 
-                    style={{ 
-                      backgroundColor: "#6b7280", 
-                      color: "white", 
-                      padding: "10px 30px", 
-                      borderRadius: "5px", 
-                      border: "none", 
-                      cursor: "pointer" 
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
+  <div 
+    style={{ 
+      display: "flex", 
+      justifyContent: "center", 
+      gap: "1rem" 
+    }}
+  >
+
+    {/* Save */}
+    <button 
+      onClick={handleSave} 
+      style={{ 
+        backgroundColor: "#10b981", 
+        color: "white", 
+        padding: "10px 30px", 
+        borderRadius: "5px", 
+        border: "none", 
+        cursor: "pointer" 
+      }}
+    >
+      Save
+    </button>
+
+    {/* Undo */}
+    <button
+      onClick={handleUndo}
+      disabled={!canUndo}
+      style={{
+        backgroundColor: canUndo ? "#f59e0b" : "#9ca3af",
+        color: "white",
+        padding: "10px 30px",
+        borderRadius: "5px",
+        border: "none",
+        cursor: canUndo ? "pointer" : "not-allowed"
+      }}
+    >
+      Undo
+    </button>
+
+    {/* Redo */}
+    <button
+      onClick={handleRedo}
+      disabled={!canRedo}
+      style={{
+        backgroundColor: canRedo ? "#8b5cf6" : "#9ca3af",
+        color: "white",
+        padding: "10px 30px",
+        borderRadius: "5px",
+        border: "none",
+        cursor: canRedo ? "pointer" : "not-allowed"
+      }}
+    >
+      Redo
+    </button>
+
+    {/* Cancel */}
+    <button 
+      onClick={handleCancel} 
+      style={{ 
+        backgroundColor: "#6b7280", 
+        color: "white", 
+        padding: "10px 30px", 
+        borderRadius: "5px", 
+        border: "none", 
+        cursor: "pointer" 
+      }}
+    >
+      Cancel
+    </button>
+
+  </div>
+) : (
                 <button 
                   onClick={() => setEditMode(true)} 
                   style={{ 

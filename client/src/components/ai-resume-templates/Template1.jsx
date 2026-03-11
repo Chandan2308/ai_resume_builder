@@ -13,6 +13,7 @@ import { useResume } from "../../context/ResumeContext";
 import { useAuth } from "../../context/AuthContext";
 import LoginPrompt from "../auth/LoginPrompt";
 import html2pdf from "html2pdf.js";
+import useUndoRedo from "../../hooks/useUndoRedo";
 
 // 🔹 Helpers from config
 import { 
@@ -31,12 +32,40 @@ const Template1 = () => {
     sectionOrder 
   } = resumeContext || { sectionOrder: [] };
   
-  const [localData, setLocalData] = useState(resumeData || {});
+  // const [localData, setLocalData] = useState(resumeData || {});
+  const {
+  state: localData,
+  setState: setLocalData,
+  undo,
+  redo,
+  canUndo,
+  canRedo
+} = useUndoRedo(resumeData || {});
+
+const handleUndo = () => {
+  if (!canUndo) {
+    toast.info("Nothing to undo");
+    return;
+  }
+  undo();
+  toast.success("Undo applied");
+};
+
+const handleRedo = () => {
+  if (!canRedo) {
+    toast.info("Nothing to redo");
+    return;
+  }
+  redo();
+  toast.success("Redo applied");
+};
+
   const [editMode, setEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const resumeRef = useRef();
-  
+
+
   useEffect(() => {
     if (!isAuthenticated) {
       setShowLoginPrompt(true);
@@ -48,6 +77,11 @@ const Template1 = () => {
       setLocalData(JSON.parse(JSON.stringify(resumeData))); 
     }
   }, [resumeData]);
+//   useEffect(() => {
+//   if (resumeData) {
+//     setLocalData(resumeData);
+//   }
+// }, [resumeData]);
 
   // ---------- HANDLERS ----------
 
@@ -915,22 +949,56 @@ const Template1 = () => {
                 justifyContent: "center" 
               }}
             >
-              {editMode ? (
-                <>
-                  <button 
-                    onClick={handleSave} 
-                    style={{ 
-                      backgroundColor: "#10b981", 
-                      color: "white", 
-                      padding: "0.7rem 2.5rem", 
-                      borderRadius: "8px", 
-                      border: "none", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}
-                  >
-                    Save Changes
-                  </button>
+                  {editMode ? (
+  <>
+
+    <button
+      onClick={handleSave}
+      style={{
+        backgroundColor: "#10b981",
+        color: "white",
+        padding: "0.7rem 2.5rem",
+        borderRadius: "8px",
+        border: "none",
+        cursor: "pointer",
+        fontWeight: "bold"
+      }}
+    >
+      Save Changes
+    </button>
+    
+    <button
+  onClick={handleUndo}
+  disabled={!canUndo}
+  style={{
+    backgroundColor: "#f59e0b",
+    color: "white",
+    padding: "0.7rem 1.5rem",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+    fontWeight: "bold"
+  }}
+>
+  Undo
+</button>
+
+    <button
+  onClick={handleRedo}
+  disabled={!canRedo}
+  style={{
+    backgroundColor: "#8b5cf6",
+    color: "white",
+    padding: "0.7rem 1.5rem",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+    fontWeight: "bold"
+  }}
+>
+  Redo
+</button>
+
                   <button 
                     onClick={handleCancel} 
                     style={{ 
