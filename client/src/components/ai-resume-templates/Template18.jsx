@@ -1,182 +1,31 @@
-import React, { 
-  useState, 
-  useRef, 
-  useEffect 
-} from "react";
-import useUndoRedo from "../../hooks/useUndoRedo";
+import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
-import {
-  Mail,
-  Phone,
-  MapPin,
-  Linkedin,
-  Github,
-  Briefcase,
-  GraduationCap,
-  User,
-  Award,
-  Globe,
-  Calendar,
-  Code,
-  BookOpen,
-  Heart,
-  Scroll,
-  Plus,
-  Trash2,
-  ExternalLink
-} from "lucide-react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import { toast } from "react-toastify";
+import useResumeBodyStyle from "../../hooks/useResumeBodyStyle";
 
-const Template13 = () => {
+const Template22 = () => {
   const resumeRef = useRef(null);
-  const { 
-    resumeData, 
-    updateResumeData, 
-    sectionOrder 
-  } = useResume();
-  
+  const { resumeData, setResumeData } = useResume();
   const [editMode, setEditMode] = useState(false);
-  const {
-    state: localData,
-    setState: setLocalData,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useUndoRedo(resumeData || {});
+  const [localData, setLocalData] = useState(resumeData);
+  const [profileImage, setProfileImage] = useState(null);
 
-  const [templateSettings, setTemplateSettings] = useState({
-    fontFamily: "'Inter', sans-serif",
-    primaryColor: "#1e40af",
-    secondaryColor: "#64748b",
-    accentColor: "#f59e0b",
-    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80",
-  });
-
-  const [uploadedPhoto, setUploadedPhoto] = useState(null);
-
-  /**
-   * ChipInput Component
-   * Handles Skills, Languages, and Interests
-   */
-  const ChipInput = ({ 
-    chips = [], 
-    onChange, 
-    placeholder = "Add item" 
-  }) => {
-    const inputRef = useRef(null);
-    
-    useEffect(() => { 
-      if (!Array.isArray(chips)) { 
-        onChange([]); 
-      } 
-    }, []);
-
-    const addChip = (value) => {
-      const v = String(value || "").trim();
-      if (!v) return;
-      const exists = chips.some((c) => c.toLowerCase() === v.toLowerCase());
-      if (exists) return;
-      onChange([...chips, v]);
-    };
-
-    const removeChip = (index) => {
-      const newChips = [...chips];
-      newChips.splice(index, 1);
-      onChange(newChips);
-    };
-
-    return (
-      <div className="flex flex-wrap gap-2 items-center">
-        {chips.map((chip, idx) => (
-          <span 
-            key={idx} 
-            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center gap-2"
-          >
-            <span className="text-sm font-medium">{chip}</span>
-            <button 
-              type="button" 
-              onClick={() => removeChip(idx)} 
-              className="text-red-500 font-bold ml-1"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          className="p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400 min-w-[140px]"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
-              e.preventDefault();
-              addChip(e.target.value);
-              e.target.value = "";
-            } else if (e.key === "Backspace" && !e.target.value && chips.length) {
-              removeChip(chips.length - 1);
-            }
-          }}
-        />
-      </div>
-    );
-  };
+  const resumeBodyStyle = useResumeBodyStyle();
 
   useEffect(() => {
-    if (resumeData) {
-      setLocalData({
-        ...resumeData,
-        projects: resumeData.projects || [],
-        certifications: resumeData.certifications || [],
-        achievements: resumeData.achievements || [],
-        courses: resumeData.courses || [],
-        interests: resumeData.interests || [],
-        skills: resumeData.skills || [],
-        languages: resumeData.languages || [],
-        experience: resumeData.experience || [],
-        education: resumeData.education || [],
-      });
-    }
+    setLocalData(resumeData);
   }, [resumeData]);
 
   const handleFieldChange = (field, value) => {
-    setLocalData(prev => ({ 
-      ...prev, 
-      [field]: value 
-    }));
-  };
-
-  const handleNestedChange = (arrayKey, index, field, value) => {
-    setLocalData(prev => ({
-      ...prev,
-      [arrayKey]: prev[arrayKey].map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ),
-    }));
-  };
-
-  const handleAddItem = (section, template) => {
-    setLocalData(prev => ({
-      ...prev,
-      [section]: [...(prev[section] || []), template],
-    }));
-  };
-
-  const handleRemoveItem = (section, index) => {
-    setLocalData(prev => ({
-      ...prev,
-      [section]: prev[section].filter((_, i) => i !== index),
-    }));
+    const updatedData = { ...localData, [field]: value };
+    setLocalData(updatedData);
+    localStorage.setItem('resumeData', JSON.stringify(updatedData));
   };
 
   const handleSave = () => {
-    updateResumeData(localData);
+    setResumeData(localData);
     setEditMode(false);
-    toast.success("Resume saved successfully!");
   };
 
   const handleCancel = () => {
@@ -184,655 +33,344 @@ const Template13 = () => {
     setEditMode(false);
   };
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files && e.target.files[0];
+  const addEducation = () => {
+    handleFieldChange("education", [
+      ...localData.education,
+      { degree: "New Degree", institution: "New Institution", duration: "Year - Year" },
+    ]);
+  };
+
+  const removeEducation = (index) => {
+    const updated = [...localData.education];
+    updated.splice(index, 1);
+    handleFieldChange("education", updated);
+  };
+
+  const addExperience = () => {
+    handleFieldChange("experience", [
+      ...localData.experience,
+      {
+        title: "New Title",
+        companyName: "New Company",
+        date: "Year - Year",
+        accomplishment: ["Achievement 1"],
+      },
+    ]);
+  };
+
+  const removeExperience = (index) => {
+    const updated = [...localData.experience];
+    updated.splice(index, 1);
+    handleFieldChange("experience", updated);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedPhoto(reader.result);
-        setTemplateSettings((prev) => ({ 
-          ...prev, 
-          photo: reader.result 
-        }));
-      };
+      reader.onload = () => setProfileImage(reader.result);
       reader.readAsDataURL(file);
     }
   };
 
-  const handleDownload = async () => {
-    const element = resumeRef.current;
-    if (!element) return;
-    try {
-      const canvas = await html2canvas(element, { 
-        scale: 2, 
-        useCORS: true 
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ 
-        orientation: "portrait", 
-        unit: "mm", 
-        format: "a4" 
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${localData.name || "Resume"}.pdf`);
-    } catch (error) { 
-      console.error("PDF Error", error); 
-    }
-  };
-
-  const SectionHeading = ({ title, icon: Icon }) => (
-    <div className="flex items-center gap-3 mb-6 mt-4 first:mt-0">
-      <div className="w-1 h-8 bg-gradient-to-b from-blue-600 to-blue-800 rounded-full"></div>
-      <div className="flex items-center gap-2">
-        {Icon && <Icon className="w-5 h-5 text-blue-600" />}
-        <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide">
-          {title}
-        </h2>
-      </div>
-    </div>
-  );
-
-  const renderSection = (sectionKey) => {
-    switch (sectionKey) {
-      case "summary":
-        return (editMode || localData.summary) && (
-          <div key="summary" className="mb-8">
-            <SectionHeading title="Professional Summary" icon={User} />
-            {editMode ? (
-              <textarea 
-                value={localData.summary} 
-                onChange={(e) => handleFieldChange("summary", e.target.value)} 
-                className="w-full text-gray-700 leading-relaxed p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                rows={4} 
-              />
-            ) : (
-              <p className="text-gray-700 leading-relaxed text-lg">
-                {localData.summary}
-              </p>
-            )}
-          </div>
-        );
-
-      case "experience":
-        return (editMode || localData.experience?.length > 0) && (
-          <div key="experience" className="mb-8">
-            <SectionHeading title="Experience" icon={Briefcase} />
-            <div className="space-y-6">
-              {localData.experience?.map((exp, i) => (
-                <div 
-                  key={i} 
-                  className="bg-gray-50 rounded-xl p-6 border-l-4 border-blue-600 relative"
-                >
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("experience", i)} 
-                      className="absolute top-2 right-2 text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={exp.title} 
-                        onChange={(e) => handleNestedChange("experience", i, "title", e.target.value)} 
-                        className="w-full font-bold p-2 border rounded" 
-                        placeholder="Job Title" 
-                      />
-                      <input 
-                        type="text" 
-                        value={exp.companyName} 
-                        onChange={(e) => handleNestedChange("experience", i, "companyName", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        placeholder="Company" 
-                      />
-                      <input 
-                        type="text" 
-                        value={exp.date} 
-                        onChange={(e) => handleNestedChange("experience", i, "date", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        placeholder="Date Range" 
-                      />
-                      <textarea 
-                        value={exp.accomplishment} 
-                        onChange={(e) => handleNestedChange("experience", i, "accomplishment", [e.target.value])} 
-                        className="w-full p-2 border rounded" 
-                        rows={3} 
-                        placeholder="Description" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className="text-xl font-bold text-gray-800">
-                        {exp.title}
-                      </h3>
-                      <div className="flex items-center gap-4 text-blue-600 font-semibold mb-2">
-                        <span>{exp.companyName}</span>
-                        <span className="text-gray-400 font-normal">|</span>
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                          <Calendar size={14} />
-                          {exp.date}
-                        </span>
-                      </div>
-                      <p className="text-gray-700">
-                        {Array.isArray(exp.accomplishment) ? exp.accomplishment[0] : exp.accomplishment}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("experience", { title: "", companyName: "", date: "", accomplishment: [""] })} 
-                  className="text-blue-600 font-bold flex items-center gap-1"
-                >
-                  <Plus size={18}/> Add Experience
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "projects":
-        return (editMode || localData.projects?.length > 0) && (
-          <div key="projects" className="mb-8">
-            <SectionHeading title="Projects" icon={Code} />
-            <div className="grid grid-cols-1 gap-6">
-              {localData.projects?.map((proj, i) => (
-                <div 
-                  key={i} 
-                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative"
-                >
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("projects", i)} 
-                      className="absolute top-2 right-2 text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={proj.name} 
-                        onChange={(e) => handleNestedChange("projects", i, "name", e.target.value)} 
-                        className="w-full font-bold p-2 border rounded" 
-                        placeholder="Project Name" 
-                      />
-                      <input 
-                        type="text" 
-                        value={proj.link} 
-                        onChange={(e) => handleNestedChange("projects", i, "link", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        placeholder="Project Link" 
-                      />
-                      <textarea 
-                        value={proj.description} 
-                        onChange={(e) => handleNestedChange("projects", i, "description", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        rows={3} 
-                        placeholder="Description" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-xl font-bold text-gray-800">
-                          {proj.name}
-                        </h3>
-                        {proj.link && (
-                          <a 
-                            href={proj.link} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-blue-600 flex items-center gap-1 text-sm"
-                          >
-                            <ExternalLink size={14} /> View
-                          </a>
-                        )}
-                      </div>
-                      <p className="text-gray-600 leading-relaxed">
-                        {proj.description}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("projects", { name: "", link: "", description: "" })} 
-                  className="text-blue-600 font-bold flex items-center gap-1"
-                >
-                  <Plus size={18}/> Add Project
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "education":
-        return (editMode || localData.education?.length > 0) && (
-          <div key="education" className="mb-8">
-            <SectionHeading title="Education" icon={GraduationCap} />
-            <div className="space-y-4">
-              {localData.education?.map((edu, i) => (
-                <div key={i} className="bg-blue-50/50 rounded-xl p-4 relative">
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("education", i)} 
-                      className="absolute top-2 right-2 text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={edu.degree} 
-                        onChange={(e) => handleNestedChange("education", i, "degree", e.target.value)} 
-                        className="w-full font-bold p-1 border rounded" 
-                      />
-                      <input 
-                        type="text" 
-                        value={edu.institution} 
-                        onChange={(e) => handleNestedChange("education", i, "institution", e.target.value)} 
-                        className="w-full p-1 border rounded" 
-                      />
-                      <input 
-                        type="text" 
-                        value={edu.duration} 
-                        onChange={(e) => handleNestedChange("education", i, "duration", e.target.value)} 
-                        className="w-full p-1 border rounded" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className="text-lg font-bold text-gray-800">
-                        {edu.degree}
-                      </h3>
-                      <p className="text-blue-700 font-medium">
-                        {edu.institution}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {edu.duration}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("education", { degree: "", institution: "", duration: "" })} 
-                  className="text-blue-600 font-bold flex items-center gap-1 text-sm"
-                >
-                  <Plus size={14}/> Add Education
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "skills":
-        return (editMode || localData.skills?.length > 0) && (
-          <div key="skills" className="mb-8">
-            <SectionHeading title="Skills" icon={Award} />
-            {editMode ? (
-              <ChipInput 
-                chips={localData.skills} 
-                onChange={(newChips) => handleFieldChange("skills", newChips)} 
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {localData.skills?.map((skill, i) => (
-                  <span 
-                    key={i} 
-                    className="bg-blue-100 text-blue-800 px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      case "certifications":
-        return (editMode || localData.certifications?.length > 0) && (
-          <div key="certifications" className="mb-8">
-            <SectionHeading title="Certifications" icon={Scroll} />
-            <div className="space-y-3">
-              {localData.certifications?.map((cert, i) => (
-                <div key={i} className="flex items-start gap-3 relative">
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("certifications", i)} 
-                      className="text-red-500 mt-1"
-                    >
-                      <Trash2 size={14}/>
-                    </button>
-                  )}
-                  <div>
-                    {editMode ? (
-                      <input 
-                        value={cert.title} 
-                        onChange={(e) => handleNestedChange("certifications", i, "title", e.target.value)} 
-                        className="font-bold border-b border-gray-300 outline-none" 
-                      />
-                    ) : (
-                      <p className="font-bold text-gray-800">
-                        {cert.title}
-                      </p>
-                    )}
-                    <p className="text-sm text-gray-500">
-                      {cert.issuer} • {cert.date}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("certifications", { title: "", issuer: "", date: "" })} 
-                  className="text-blue-600 font-bold text-xs"
-                >
-                  + Add Cert
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "achievements":
-        return (editMode || localData.achievements?.length > 0) && (
-          <div key="achievements" className="mb-8">
-            <SectionHeading title="Achievements" icon={Award} />
-            <ul className="list-disc list-inside space-y-2 text-gray-700">
-              {localData.achievements?.map((ach, i) => (
-                <li key={i} className="relative group">
-                  {editMode ? (
-                    <input 
-                      value={typeof ach === 'string' ? ach : ach.title} 
-                      onChange={(e) => {
-                        const newAch = [...localData.achievements];
-                        newAch[i] = e.target.value;
-                        handleFieldChange("achievements", newAch);
-                      }} 
-                      className="w-11/12 border-b border-gray-300 outline-none" 
-                    />
-                  ) : (
-                    <span>{typeof ach === 'string' ? ach : ach.title}</span>
-                  )}
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("achievements", i)} 
-                      className="text-red-500 ml-2"
-                    >
-                      <Trash2 size={12}/>
-                    </button>
-                  )}
-                </li>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("achievements", "New Achievement")} 
-                  className="text-blue-600 font-bold text-xs"
-                >
-                  + Add Achievement
-                </button>
-              )}
-            </ul>
-          </div>
-        );
-
-      case "languages":
-        return (editMode || localData.languages?.length > 0) && (
-          <div key="languages" className="mb-8">
-            <SectionHeading title="Languages" icon={Globe} />
-            {editMode ? (
-              <ChipInput 
-                chips={localData.languages} 
-                onChange={(newChips) => handleFieldChange("languages", newChips)} 
-              />
-            ) : (
-              <div className="flex flex-wrap gap-4">
-                {localData.languages?.map((lang, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"/> 
-                    <span className="font-medium text-gray-700">{lang}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      case "interests":
-        return (editMode || localData.interests?.length > 0) && (
-          <div key="interests" className="mb-8">
-            <SectionHeading title="Interests" icon={Heart} />
-            {editMode ? (
-              <ChipInput 
-                chips={localData.interests} 
-                onChange={(newChips) => handleFieldChange("interests", newChips)} 
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {localData.interests?.map((int, i) => (
-                  <span 
-                    key={i} 
-                    className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium"
-                  >
-                    {int}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      default: 
-        return null;
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
       <Navbar />
-      <div className="flex">
-        <Sidebar 
-          onDownload={handleDownload} 
-          onSave={handleSave} 
-          resumeRef={resumeRef} 
-        />
-        
-          {/* Undo/Redo Buttons */}
-          <div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}} data-pdf-hide="true">
-            <button
-              onClick={undo}
-              disabled={!canUndo}
-              style={{padding: "8px 16px", background: canUndo ? "#4f46e5" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canUndo ? "pointer" : "not-allowed"}}
-              title="Undo"
-            >
-              ↩ Undo
-            </button>
-            <button
-              onClick={redo}
-              disabled={!canRedo}
-              style={{padding: "8px 16px", background: canRedo ? "#0891b2" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canRedo ? "pointer" : "not-allowed"}}
-              title="Redo"
-            >
-              Redo ↪
-            </button>
-          </div>
-<div className="flex-grow p-8 flex flex-col items-center pb-24">
-          <div 
-            ref={resumeRef} 
-            style={{ 
-              fontFamily: templateSettings.fontFamily, 
-              backgroundColor: "#ffffff", 
-              borderRadius: "1rem", 
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)", 
-              maxWidth: "210mm", 
-              width: "100%", 
-              minHeight: "297mm" 
+      <div style={{ display: "flex" }}>
+        <Sidebar resumeRef={resumeRef} />
+        <div style={{ flex: 1, padding: "2rem", display: "flex", justifyContent: "center" }}>
+          <div
+            ref={resumeRef}
+            style={{
+              backgroundColor: "#fff",
+              padding: "2rem",
+              width: "100%",
+              maxWidth: "850px",
+              borderRadius: "0.5rem",
+              fontFamily: "Arial, sans-serif",
+              border: "1px solid #d1d5db",
+              ...resumeBodyStyle,
             }}
           >
-            
-            {/* Header Section */}
-            <div 
-              style={{ 
-                background: "linear-gradient(to right, #2563eb, #1e40af)", 
-                color: "#ffffff", 
-                padding: "2.5rem" 
-              }} 
-              className="rounded-t-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                {editMode ? (
+                  <>
+                    <input
+                      value={localData.name}
+                      onChange={(e) => handleFieldChange("name", e.target.value)}
+                      style={{ fontSize: "1.5rem", fontWeight: "bold" }}
+                    />
+                    <input
+                      value={localData.role}
+                      onChange={(e) => handleFieldChange("role", e.target.value)}
+                      style={{ fontSize: "1rem", color: "#555" }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{resumeData.name}</h1>
+                    <h2 style={{ fontSize: "1rem", color: "#555" }}>{resumeData.role}</h2>
+                  </>
+                )}
+              </div>
+              <div>
+                {editMode ? (
+                  <label style={{ cursor: "pointer" }}>
+                    <img
+                      src={profileImage || "https://via.placeholder.com/80"}
+                      alt="Profile"
+                      style={{
+                        width: "120px",
+                        height: "120px",
+                        borderRadius: "10px",
+                        objectFit: "cover",
+                      }}
+                    />
+                    <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
+                    <p style={{ fontSize: "0.75rem", color: "#2563eb" }}>Click to change</p>
+                  </label>
+                ) : (
+                  <img
+                    src={
+                      profileImage ||
+                      "https://i.pinimg.com/originals/03/d8/db/03d8db5fa74516252ade0c0bc77aeb9e.jpg"
+                    }
+                    alt="Profile"
+                    style={{ width: "120px", height: "120px", borderRadius: "10px", objectFit: "cover" }}
+                  />
+                )}
+              </div>
+            </div>
+
+            <hr style={{ margin: "1rem 0", borderColor: "#ccc" }} />
+
+            {/* Summary */}
+            {editMode || resumeData.summary?.trim() ? (
+            <section>
+              <h1 style={{color:"red", fontWeight:"700", fontSize:"20px"}}>Summary</h1>
+              {editMode ? (
+                <textarea
+                  value={localData.summary}
+                  onChange={(e) => handleFieldChange("summary", e.target.value)}
+                  rows={4}
+                  style={{ width: "100%", marginTop: "0.5rem", padding: "0.5rem" }}
+                />
+              ) : (
+                <p>{resumeData.summary}</p>
+              )}
+            </section>
+            ) : null}
+
+            <hr style={{ margin: "1rem 0", borderColor: "#ccc" }} />
+
+            {/* Contact */}
+            {editMode || ["location","phone", "email", "linkedin"].some(field => resumeData[field]?.trim()) ? (
+            <section>
+              <h3 style={{ fontWeight:"700", fontSize:"20px"}}>Contact</h3>
+              {["location", "phone", "email", "linkedin"].map((field) =>
+                editMode ? (
+                  <input
+                    key={field}
+                    value={localData[field]}
+                    onChange={(e) => handleFieldChange(field, e.target.value)}
+                    placeholder={field}
+                    style={{ width: "100%", marginTop: "0.25rem", borderBottom: "1px solid #ccc" }}
+                  />
+                ) : (
+                  resumeData[field]?.trim()&&(
+                  <p key={field}>{resumeData[field]}</p>
+                )
+              )
+              )}
+            </section>
+           ) : null}
+
+            <hr style={{ margin: "1rem 0", borderColor: "#ccc" }} />
+
+            {/* Skills */}
+            {editMode || (resumeData.skills && resumeData.skills.length > 0) ? (
+            <section>
+              <h3 style={{color:"red", fontWeight:"700", fontSize:"20px"}}>Skills</h3>
+              {editMode ? (
+                <textarea
+                  value={localData.skills?.join(", ") || ""}
+                  onChange={(e) =>
+                    handleFieldChange(
+                      "skills",
+                      e.target.value.split(",").map((s) => s.trim())
+                    )
+                  }
+                  style={{ width: "100%", marginTop: "0.5rem", padding: "0.5rem" }}
+                />
+              ) : (
+                <ul>
+                  {resumeData.skills?.map((skill, i) => (
+                    <li key={i}>{skill}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            ): null}
+
+            <hr style={{ margin: "1rem 0", borderColor: "#ccc" }} />
+
+            {/* Education */}
+            {editMode || (resumeData.education && resumeData.education.length > 0)? (
+            <section>
+              <h3 style={{fontWeight:"700", fontSize:"20px"}}>Education</h3>
+              {localData.education.map((edu, i) => (
+                <div key={i}>
                   {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={localData.name} 
-                        onChange={(e) => handleFieldChange("name", e.target.value)} 
-                        className="text-4xl font-bold bg-transparent border-b-2 border-white/30 w-full outline-none" 
+                    <>
+                      <input
+                        value={edu.degree}
+                        onChange={(e) => {
+                          const updated = [...localData.education];
+                          updated[i].degree = e.target.value;
+                          handleFieldChange("education", updated);
+                        }}
+                        style={{ width: "100%" }}
                       />
-                      <input 
-                        type="text" 
-                        value={localData.role} 
-                        onChange={(e) => handleFieldChange("role", e.target.value)} 
-                        className="text-xl text-blue-200 bg-transparent border-b-2 border-white/30 w-full outline-none" 
+                      <input
+                        value={edu.institution}
+                        onChange={(e) => {
+                          const updated = [...localData.education];
+                          updated[i].institution = e.target.value;
+                          handleFieldChange("education", updated);
+                        }}
+                        style={{ width: "100%" }}
                       />
-                    </div>
+                      <input
+                        value={edu.duration}
+                        onChange={(e) => {
+                          const updated = [...localData.education];
+                          updated[i].duration = e.target.value;
+                          handleFieldChange("education", updated);
+                        }}
+                        style={{ width: "100%" }}
+                      />
+                      <button onClick={() => removeEducation(i)} style={{ color: "red" }}>
+                        Remove
+                      </button>
+                    </>
                   ) : (
                     <>
-                      <h1 className="text-4xl font-bold mb-2 tracking-tight">
-                        {localData.name}
-                      </h1>
-                      <p className="text-xl text-blue-100 font-medium">
-                        {localData.role}
-                      </p>
+                      <p>{edu.degree}</p>
+                      <p>{edu.institution} ({edu.duration})</p>
                     </>
                   )}
                 </div>
-                <div className="relative group">
-                  <img 
-                    src={uploadedPhoto || templateSettings.photo} 
-                    alt="Profile" 
-                    className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover" 
-                  />
-                  {editMode && (
-                    <label 
-                      htmlFor="photo-upload" 
-                      className="absolute bottom-0 right-0 bg-white p-2 rounded-full text-blue-600 shadow-lg cursor-pointer"
-                    >
-                      <Plus size={20} />
-                      <input 
-                        id="photo-upload" 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handlePhotoChange} 
-                        className="hidden" 
+              ))}
+              {editMode && (
+                <button onClick={addEducation} style={{ marginTop: "0.5rem", color: "#2563eb" }}>
+                  + Add Education
+                </button>
+              )}
+            </section>
+            ):null}
+
+            <hr style={{ margin: "1rem 0", borderColor: "#ccc" }} />
+
+            {/* Experience */}
+            {editMode || (resumeData.experience && resumeData.experience.length > 0) ? (
+            <section>
+              <h3 style={{color:"red", fontWeight:"700", fontSize:"20px"}}>Experience</h3>
+              {localData.experience.map((exp, i) => (
+                <div key={i}>
+                  {editMode ? (
+                    <>
+                      <input
+                        value={exp.title}
+                        onChange={(e) => {
+                          const updated = [...localData.experience];
+                          updated[i].title = e.target.value;
+                          handleFieldChange("experience", updated);
+                        }}
+                        style={{ width: "100%" }}
                       />
-                    </label>
+                      <input
+                        value={exp.companyName}
+                        onChange={(e) => {
+                          const updated = [...localData.experience];
+                          updated[i].companyName = e.target.value;
+                          handleFieldChange("experience", updated);
+                        }}
+                        style={{ width: "100%" }}
+                      />
+                      <input
+                        value={exp.date}
+                        onChange={(e) => {
+                          const updated = [...localData.experience];
+                          updated[i].date = e.target.value;
+                          handleFieldChange("experience", updated);
+                        }}
+                        style={{ width: "100%" }}
+                      />
+                      <textarea
+                        value={exp.accomplishment.join("\n")}
+                        onChange={(e) => {
+                          const updated = [...localData.experience];
+                          updated[i].accomplishment = e.target.value
+                            .split("\n")
+                            .filter(Boolean);
+                          handleFieldChange("experience", updated);
+                        }}
+                        rows={3}
+                        style={{ width: "100%" }}
+                      />
+                      <button onClick={() => removeExperience(i)} style={{ color: "red" }}>
+                        Remove
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p>{exp.title} at {exp.companyName}</p>
+                      <p>{exp.date}</p>
+                      <ul>
+                        {exp.accomplishment.map((item, j) => (
+                          <li key={j}>{item}</li>
+                        ))}
+                      </ul>
+                    </>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* Contact Bar */}
-            <div className="bg-gray-800 text-white px-8 py-5 flex flex-wrap justify-between gap-4 text-sm shadow-inner">
-              <div className="flex items-center gap-2">
-                <Mail className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.email} 
-                    onChange={(e) => handleFieldChange("email", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <a href={`mailto:${localData.email}`} style={{color:"inherit"}} target="_blank" rel="noopener noreferrer">{localData.email}</a>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Phone className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.phone} 
-                    onChange={(e) => handleFieldChange("phone", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <span>{localData.phone}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.location} 
-                    onChange={(e) => handleFieldChange("location", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <span>{localData.location}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Linkedin className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.linkedin} 
-                    onChange={(e) => handleFieldChange("linkedin", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <a href={(localData.linkedin && !/^https?:\/\//i.test(localData.linkedin)) ? `https://\${localData.linkedin} target="_blank" rel="noopener noreferrer"` : localData.linkedin} className="hover:underline">
-                    LinkedIn Profile
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* DYNAMIC BODY */}
-            <div className="p-10 space-y-2">
-              {sectionOrder.map((sectionKey) => (
-                <React.Fragment key={sectionKey}>
-                  {renderSection(sectionKey)}
-                </React.Fragment>
               ))}
-            </div>
-          </div>
+              {editMode && (
+                <button onClick={addExperience} style={{ marginTop: "0.5rem", color: "#2563eb" }}>
+                  + Add Experience
+                </button>
+              )}
+            </section>
+            ):null}
 
-          {/* Action Buttons */}
-          <div className="mt-10 flex gap-6">
-            {editMode ? (
-              <>
-                <button 
-                  onClick={handleSave} 
-                  className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all"
+            {/* Buttons */}
+            <div  className="no-print" style={{ textAlign: "center", marginTop: "2rem" }} >
+              {editMode ? (
+                <>
+                  <button
+                    onClick={handleSave}
+                    style={{ backgroundColor: "#10b981", color: "#fff", padding: "0.5rem 1rem", marginRight: "0.5rem" }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    style={{ backgroundColor: "#6b7280", color: "#fff", padding: "0.5rem 1rem" }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button className="no-print"
+                  onClick={() => setEditMode(true)}
+                  style={{ backgroundColor: "#3b82f6", color: "#fff", padding: "0.5rem 1rem" }}
                 >
-                  Save Changes
+                  Edit
                 </button>
-                <button 
-                  onClick={handleCancel} 
-                  className="bg-gray-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={() => setEditMode(true)} 
-                className="bg-blue-600 text-white px-10 py-4 rounded-xl font-bold shadow-xl hover:bg-blue-700 transition-all transform hover:scale-105"
-              >
-                Edit Resume
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -840,4 +378,4 @@ const Template13 = () => {
   );
 };
 
-export default Template13;
+export default Template22;

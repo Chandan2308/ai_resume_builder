@@ -1,978 +1,604 @@
-/* eslint-disable no-unused-vars */
-import React, { 
-  useState, 
-  useRef, 
-  useEffect 
-} from "react";
-import { 
-  toast 
-} from 'react-toastify';
+import React, { useState, useRef, useEffect } from "react";
+import { toast } from 'react-toastify';
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
 import { useAuth } from "../../context/AuthContext";
+import resumeService from "../../services/resumeService";
 import LoginPrompt from "../auth/LoginPrompt";
-import html2pdf from "html2pdf.js";
+import useResumeBodyStyle from "../../hooks/useResumeBodyStyle";
 
-// 🔹 Helpers from config
-import { 
-  hasContent, 
-  getSafeUrl 
-} from "../../utils/ResumeConfig";
+const defaultLocalData = {
+  name: "",
+  title: "",
+  email: "",
+  phone: "",
+  website: "",
+  experience: [],
+  projects: [],
+  education: [],
+  skills: [],
+  languages: [],
+  references: [],
+  textColor: "#000000",
+  font: "serif"
+};
 
-const Template1 = () => {
+const Template26 = () => {
   const resumeContext = useResume();
   const { isAuthenticated } = useAuth();
-  
-  // Destructure global state from context
-  const { 
-    resumeData, 
-    updateResumeData, 
-    sectionOrder 
-  } = resumeContext || { sectionOrder: [] };
-  
-  const [localData, setLocalData] = useState(resumeData || {});
+
+  const resumeData = resumeContext?.resumeData || {};
+  const updateResumeData = resumeContext?.updateResumeData;
+
+  const [localData, setLocalData] = useState(resumeData);
   const [editMode, setEditMode] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [isSavingToDatabase, setIsSavingToDatabase] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const resumeRef = useRef();
-  
+  const resumeBodyStyle = useResumeBodyStyle();
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      setShowLoginPrompt(true);
-    }
+    if (!isAuthenticated) setShowLoginPrompt(true);
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (resumeData) {
-      setLocalData(JSON.parse(JSON.stringify(resumeData))); 
-    }
+    if (resumeData) setLocalData(JSON.parse(JSON.stringify(resumeData)));
   }, [resumeData]);
 
-  // ---------- HANDLERS ----------
-
   const handleInputChange = (field, value) => {
-    setLocalData(prev => ({ 
-      ...prev, 
-      [field]: value 
-    }));
+    const updatedData = { ...localData, [field]: value };
+    setLocalData(updatedData);
+    localStorage.setItem('resumeData', JSON.stringify(updatedData));
   };
 
   const handleObjectChange = (section, index, field, value) => {
     const updatedSection = [...(localData[section] || [])];
     if (updatedSection[index]) {
-      if (typeof updatedSection[index] === 'string') {
-        updatedSection[index] = value;
-      } else {
-        updatedSection[index] = { 
-          ...updatedSection[index], 
-          [field]: value 
-        };
-      }
+      updatedSection[index] = { ...updatedSection[index], [field]: value };
     }
-    setLocalData(prev => ({ 
-      ...prev, 
-      [section]: updatedSection 
-    }));
+    const updatedData = { ...localData, [section]: updatedSection };
+    setLocalData(updatedData);
+    localStorage.setItem('resumeData', JSON.stringify(updatedData));
   };
 
   const addItem = (section, newItem) => {
-    setLocalData(prev => ({
-      ...prev,
-      [section]: [
-        ...(Array.isArray(prev[section]) ? prev[section] : []), 
-        newItem
-      ]
-    }));
+    const updatedData = { ...localData, [section]: [...(localData[section] || []), newItem] };
+    setLocalData(updatedData);
+    localStorage.setItem('resumeData', JSON.stringify(updatedData));
   };
 
   const removeItem = (section, index) => {
     const updatedSection = (localData[section] || []).filter((_, i) => i !== index);
-    setLocalData(prev => ({ 
-      ...prev, 
-      [section]: updatedSection 
-    }));
+    const updatedData = { ...localData, [section]: updatedSection };
+    setLocalData(updatedData);
+    localStorage.setItem('resumeData', JSON.stringify(updatedData));
   };
 
   const handleSave = async () => {
     try {
-      setIsSaving(true);
-      if (typeof updateResumeData !== 'function') {
-        throw new Error('Update function missing');
-      }
+      setSaveStatus('Saving...');
+      setIsSavingToDatabase(true);
+      if (!resumeContext) throw new Error('Resume context is not available.');
+      if (typeof updateResumeData !== 'function') throw new Error('updateResumeData is not a function.');
       await updateResumeData(localData);
+      if (isAuthenticated) {
+        const structuredData = {
+          templateId: 26,
+          personalInfo: {
+            name: localData.name || '', role: localData.role || '', email: localData.email || '',
+            phone: localData.phone || '', location: localData.location || '',
+            linkedin: localData.linkedin || '', github: localData.github || '', portfolio: localData.portfolio || ''
+          },
+          summary: localData.summary || '',
+          skills: localData.skills || [],
+          experience: localData.experience || [],
+          education: localData.education || [],
+          projects: localData.projects || [],
+          certifications: localData.certifications || [],
+          achievements: localData.achievements || [],
+          interests: localData.interests || [],
+          languages: localData.languages || []
+        };
+        const saveResult = await resumeService.saveResumeData(structuredData);
+        if (saveResult.success) toast.success('Resume saved to database');
+        else toast.error('Failed to save');
+      }
       setEditMode(false);
-      toast.success('✅ Changes Saved Successfully');
+      setSaveStatus('Data saved successfully');
+      setTimeout(() => setSaveStatus(''), 3000);
     } catch (error) {
-      console.error(error);
-      toast.error('Failed to save changes');
+      console.error("Error saving:", error);
+      setSaveStatus(`Error: ${error.message}`);
+      toast.error('Failed to save');
+      setTimeout(() => setSaveStatus(''), 5000);
     } finally {
-      setIsSaving(false);
+      setIsSavingToDatabase(false);
     }
   };
 
   const handleCancel = () => {
     setLocalData(resumeData ? JSON.parse(JSON.stringify(resumeData)) : {});
     setEditMode(false);
+    setSaveStatus('');
   };
 
-  const handleDownload = () => {
-    const element = resumeRef.current;
-    const options = {
-      margin: 0,
-      filename: `${localData.name || 'Resume'}.pdf`,
-      image: { 
-        type: 'jpeg', 
-        quality: 0.98 
-      },
-      html2canvas: { 
-        scale: 3, 
-        useCORS: true, 
-        letterRendering: true, 
-        width: 794, 
-        windowWidth: 794, 
-        x: 0, 
-        y: 0 
-      },
-      jsPDF: { 
-        unit: "mm", 
-        format: "a4", 
-        orientation: "portrait" 
-      },
-    };
-    html2pdf().set(options).from(element).save();
+  const handleSaveLocal = () => {
+    try {
+      localStorage.setItem('resumeData', JSON.stringify(localData));
+      setEditMode(false);
+      setSaveStatus('Saved locally!');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (error) {
+      setSaveStatus('Error saving locally');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
   };
 
-  const renderSafe = (val) => {
-    if (!val) return "";
-    if (typeof val === 'string') return val;
-    return val.name || val.title || val.degree || val.language || "";
+  const handleEnhance = (section) => {};
+  const handleFontChange = (font) => setLocalData({ ...localData, font });
+  const handleColorChange = (color) => setLocalData({ ...localData, textColor: color });
+  const handleDownload = () => {};
+
+  // ─── Data guards ──────────────────────────────────────────────────────────────
+  const hasSkillData = Array.isArray(localData.skills) && localData.skills.some(s => typeof s === "string" && s.trim());
+  const hasEducationData = Array.isArray(localData.education) && localData.education.some(e => e?.degree?.trim() || e?.institution?.trim() || e?.year?.trim());
+  const hasAchievementData = Array.isArray(localData.achievements) && localData.achievements.some(a => typeof a === "string" && a.trim());
+  const hasCertificationData = Array.isArray(localData.certifications) && localData.certifications.some(c => c?.name?.trim() || c?.organization?.trim());
+  const hasInterestData = Array.isArray(localData.interests) && localData.interests.some(i => typeof i === "string" && i.trim());
+  const hasExperienceData = Array.isArray(localData.experience) && localData.experience.some(e => e?.title?.trim() || e?.company?.trim() || e?.description?.trim());
+  const hasLanguagesData = Array.isArray(localData.languages) && localData.languages.some(l => l?.language?.trim() || l?.proficiency?.trim());
+  const hasProjectData = Array.isArray(localData.projects) && localData.projects.some(p => p?.name?.trim() || p?.description?.trim());
+  const hasReferencesData = Array.isArray(localData.references) && localData.references.some(r => r?.name?.trim() || r?.title?.trim());
+
+  const accentColor = localData.textColor || "#0a91b2";
+
+  // ─── Shared heading style ─────────────────────────────────────────────────────
+  const sectionHeading = {
+    fontSize: "1.25rem",
+    fontWeight: "bold",
+    borderBottom: `2px solid ${accentColor}`,
+    paddingBottom: "0.5rem",
+    marginBottom: "1rem",
+    color: accentColor,
   };
 
-  const editBoxStyle = editMode ? {
-    border: "1px dashed #3b82f6", 
-    backgroundColor: "#eff6ff", 
-    padding: "15px", 
-    borderRadius: "8px", 
-    marginBottom: "15px"
-  } : { 
-    marginBottom: "20px" 
+  const enhanceBtn = {
+    backgroundColor: "#f59e0b",
+    color: "white",
+    padding: "0.25rem 0.5rem",
+    borderRadius: "0.25rem",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+    border: "none",
   };
 
-  const sectionHeaderStyle = {
-    fontSize: "1.2rem", 
-    fontWeight: "bold", 
-    paddingBottom: "5px", 
-    marginBottom: "12px",
-    display: "flex", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
-    textTransform: "uppercase",
-    borderBottom: `3px solid ${localData.textColor || "#0a91b2"}`, 
-    color: localData.textColor || "#0a91b2",
-  };
-
-  const inputStyle = { 
-    width: "100%", 
-    border: "1px solid #d1d5db", 
-    padding: "5px", 
-    borderRadius: "4px", 
-    marginBottom: "5px" 
-  };
-
-  // ---------- 🔹 DYNAMIC SECTION RENDERER 🔹 ----------
-  const sectionComponents = {
-    summary: hasContent(localData, "summary", editMode) && (
-      <div 
-        key="summary" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-          Summary
-        </div>
-        {editMode ? (
-          <textarea 
-            style={{ ...inputStyle, height: "80px" }} 
-            value={renderSafe(localData.summary)} 
-            onChange={(e) => handleInputChange("summary", e.target.value)} 
-          />
-        ) : (
-          <p 
-            style={{ 
-              fontSize: "0.95rem", 
-              lineHeight: "1.6", 
-              margin: 0, 
-              textAlign: "justify" 
-            }}
-          >
-            {renderSafe(localData.summary)}
-          </p>
-        )}
-      </div>
-    ),
-    education: hasContent(localData, "education", editMode) && (
-      <div 
-        key="education" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-            Education
-            {editMode && (
-              <button 
-                onClick={() => addItem("education", {degree:"", institution:""})} 
-                style={{
-                  fontSize:"12px", 
-                  background:localData.textColor || "#0a91b2", 
-                  color:"white", 
-                  border:"none", 
-                  borderRadius:"4px", 
-                  padding:"2px 8px"
-                }}
-              >
-                +
-              </button>
-            )}
-        </div>
-        {(localData.education || []).map((edu, i) => (
-          <div 
-            key={i} 
-            style={{ marginBottom: "10px" }}
-          >
-            {editMode ? (
-                <>
-                    <input 
-                      style={inputStyle} 
-                      value={renderSafe(edu.degree)} 
-                      onChange={(e) => handleObjectChange("education", i, "degree", e.target.value)} 
-                      placeholder="Degree"
-                    />
-                    <input 
-                      style={inputStyle} 
-                      value={renderSafe(edu.institution)} 
-                      onChange={(e) => handleObjectChange("education", i, "institution", e.target.value)} 
-                      placeholder="Institution"
-                    />
-                    <button 
-                      onClick={() => removeItem("education", i)} 
-                      style={{
-                        color:"red", 
-                        border:"none", 
-                        background:"none", 
-                        fontSize:"0.7rem"
-                      }}
-                    >
-                      Remove
-                    </button>
-                </>
-            ) : (
-                <>
-                    <div style={{ fontWeight: "bold", fontSize: "0.95rem" }}>
-                      {renderSafe(edu.degree)}
-                    </div>
-                    <div style={{ fontSize: "0.85rem" }}>
-                      {renderSafe(edu.institution)}
-                    </div>
-                </>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-    skills: hasContent(localData, "skills", editMode) && (
-      <div 
-        key="skills" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-             Skills
-             {editMode && (
-               <button 
-                onClick={() => addItem("skills", "")} 
-                style={{
-                  fontSize:"12px", 
-                  background:localData.textColor || "#0a91b2", 
-                  color:"white", 
-                  border:"none", 
-                  borderRadius:"4px", 
-                  padding:"2px 8px"
-                }}
-               >
-                 +
-               </button>
-             )}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-          {(localData.skills || []).map((s, i) => (
-            <div 
-              key={i} 
-              style={{ 
-                backgroundColor: "#f3f4f6", 
-                padding: "4px 10px", 
-                borderRadius: "4px", 
-                fontSize: "0.85rem", 
-                border: "1px solid #e5e7eb" 
-              }}
-            >
-              {editMode ? (
-                <input 
-                  style={{
-                    width:"70px", 
-                    border:"none", 
-                    background:"transparent"
-                  }} 
-                  value={renderSafe(s)} 
-                  onChange={(e) => handleObjectChange("skills", i, null, e.target.value)} 
-                />
-              ) : (
-                renderSafe(s)
-              )}
-              {editMode && (
-                <button 
-                  onClick={() => removeItem("skills", i)} 
-                  style={{
-                    color:"red", 
-                    marginLeft:"4px", 
-                    border:"none", 
-                    background:"none"
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-    experience: hasContent(localData, "experience", editMode) && (
-      <div 
-        key="experience" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-             Experience
-             {editMode && (
-               <button 
-                onClick={() => addItem("experience", {title:"", description:""})} 
-                style={{
-                  fontSize:"12px", 
-                  background:localData.textColor || "#0a91b2", 
-                  color:"white", 
-                  border:"none", 
-                  borderRadius:"4px", 
-                  padding:"2px 8px"
-                }}
-               >
-                 +
-               </button>
-             )}
-        </div>
-        {(localData.experience || []).map((exp, i) => (
-          <div 
-            key={i} 
-            style={{ marginBottom: "1.5rem" }}
-          >
-            {editMode ? (
-                <>
-                    <input 
-                      style={inputStyle} 
-                      value={renderSafe(exp.title)} 
-                      onChange={(e) => handleObjectChange("experience", i, "title", e.target.value)} 
-                      placeholder="Job Title" 
-                    />
-                    <textarea 
-                      style={inputStyle} 
-                      value={renderSafe(exp.description)} 
-                      onChange={(e) => handleObjectChange("experience", i, "description", e.target.value)} 
-                      placeholder="Description" 
-                    />
-                    <button 
-                      onClick={() => removeItem("experience", i)} 
-                      style={{
-                        color:"red", 
-                        border:"none", 
-                        background:"none", 
-                        fontSize:"0.7rem"
-                      }}
-                    >
-                      Remove Block
-                    </button>
-                </>
-            ) : (
-                <>
-                    <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>
-                      {renderSafe(exp.title)}
-                    </div>
-                    <p 
-                      style={{ 
-                        fontSize: "0.9rem", 
-                        margin: "5px 0", 
-                        lineHeight: "1.5" 
-                      }}
-                    >
-                      {renderSafe(exp.description)}
-                    </p>
-                </>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-    projects: hasContent(localData, "projects", editMode) && (
-      <div 
-        key="projects" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-             Projects
-             {editMode && (
-               <button 
-                onClick={() => addItem("projects", {name:"", description:""})} 
-                style={{
-                  fontSize:"12px", 
-                  background:localData.textColor || "#0a91b2", 
-                  color:"white", 
-                  border:"none", 
-                  borderRadius:"4px", 
-                  padding:"2px 8px"
-                }}
-               >
-                 +
-               </button>
-             )}
-        </div>
-        {(localData.projects || []).map((p, i) => (
-          <div 
-            key={i} 
-            style={{ marginBottom: "1.2rem" }}
-          >
-            {editMode ? (
-                <>
-                    <input 
-                      style={inputStyle} 
-                      value={renderSafe(p.name)} 
-                      onChange={(e) => handleObjectChange("projects", i, "name", e.target.value)} 
-                      placeholder="Project Name"
-                    />
-                    <textarea 
-                      style={inputStyle} 
-                      value={renderSafe(p.description)} 
-                      onChange={(e) => handleObjectChange("projects", i, "description", e.target.value)} 
-                      placeholder="Details"
-                    />
-                    <button 
-                      onClick={() => removeItem("projects", i)} 
-                      style={{
-                        color:"red", 
-                        border:"none", 
-                        background:"none", 
-                        fontSize:"0.7rem"
-                      }}
-                    >
-                      Remove
-                    </button>
-                </>
-            ) : (
-                <>
-                    <div style={{ fontWeight: "bold" }}>
-                      {renderSafe(p.name)}
-                    </div>
-                    <p 
-                      style={{ 
-                        fontSize: "0.9rem", 
-                        margin: 0, 
-                        lineHeight: "1.5" 
-                      }}
-                    >
-                      {renderSafe(p.description)}
-                    </p>
-                </>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-    certifications: hasContent(localData, "certifications", editMode) && (
-      <div 
-        key="certifications" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-            Certifications
-            {editMode && (
-              <button 
-                onClick={() => addItem("certifications", {title:""})} 
-                style={{
-                  fontSize:"12px", 
-                  background:localData.textColor || "#0a91b2", 
-                  color:"white", 
-                  border:"none", 
-                  borderRadius:"4px", 
-                  padding:"2px 8px"
-                }}
-              >
-                +
-              </button>
-            )}
-        </div>
-        {(localData.certifications || []).map((c, i) => (
-          <div 
-            key={i} 
-            style={{ 
-              fontSize: "0.95rem", 
-              marginBottom: "6px", 
-              display: "flex", 
-              justifyContent: "space-between" 
-            }}
-          >
-            {editMode ? (
-              <input 
-                style={inputStyle} 
-                value={renderSafe(c)} 
-                onChange={(e) => handleObjectChange("certifications", i, "title", e.target.value)} 
-              />
-            ) : (
-              <span>• {renderSafe(c)}</span>
-            )}
-            {editMode && (
-              <button 
-                onClick={() => removeItem("certifications", i)} 
-                style={{
-                  color:"red", 
-                  border:"none", 
-                  background:"none"
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-    achievements: hasContent(localData, "achievements", editMode) && (
-      <div 
-        key="achievements" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-            Achievements
-            {editMode && (
-              <button 
-                onClick={() => addItem("achievements", "")} 
-                style={{
-                  fontSize:"12px", 
-                  background:localData.textColor || "#0a91b2", 
-                  color:"white", 
-                  border:"none", 
-                  borderRadius:"4px", 
-                  padding:"2px 8px"
-                }}
-              >
-                +
-              </button>
-            )}
-        </div>
-        {(localData.achievements || []).map((a, i) => (
-          <div 
-            key={i} 
-            style={{ 
-              fontSize: "0.95rem", 
-              display: "flex", 
-              justifyContent: "space-between", 
-              marginBottom: "6px" 
-            }}
-          >
-            {editMode ? (
-              <input 
-                style={inputStyle} 
-                value={renderSafe(a)} 
-                onChange={(e) => handleObjectChange("achievements", i, null, e.target.value)} 
-              />
-            ) : (
-              <span>• {renderSafe(a)}</span>
-            )}
-            {editMode && (
-              <button 
-                onClick={() => removeItem("achievements", i)} 
-                style={{
-                  color:"red", 
-                  border:"none", 
-                  background:"none"
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-    languages: hasContent(localData, "languages", editMode) && (
-      <div 
-        key="languages" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-          Languages
-        </div>
-        {editMode ? (
-          <input 
-            style={inputStyle} 
-            value={localData.languages?.join(", ")} 
-            onChange={(e) => handleInputChange("languages", e.target.value.split(","))} 
-          />
-        ) : (
-          <p style={{ fontSize: "0.95rem" }}>
-            {(localData.languages || []).map(renderSafe).join(", ")}
-          </p>
-        )}
-      </div>
-    ),
-    interests: hasContent(localData, "interests", editMode) && (
-      <div 
-        key="interests" 
-        style={editBoxStyle}
-      >
-        <div style={sectionHeaderStyle}>
-          Interests
-        </div>
-        {editMode ? (
-          <input 
-            style={inputStyle} 
-            value={localData.interests?.join(", ")} 
-            onChange={(e) => handleInputChange("interests", e.target.value.split(","))} 
-          />
-        ) : (
-          <p style={{ fontSize: "0.95rem" }}>
-            {(localData.interests || []).map(renderSafe).join(", ")}
-          </p>
-        )}
-      </div>
-    ),
-  };
+  const inputStyle = (extra = {}) => ({
+    border: "1px solid #d1d5db",
+    borderRadius: "0.25rem",
+    padding: "0.5rem",
+    outline: "none",
+    width: "100%",
+    ...extra,
+  });
 
   return (
-    <div 
-      style={{ 
-        minHeight: "100vh", 
-        backgroundColor: "#f9fafb" 
-      }}
-    >
+    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb" }}>
       <Navbar />
       <div style={{ display: "flex" }}>
-        <Sidebar 
-          templateKey="template1"
-          resumeRef={resumeRef} 
-          onDownload={handleDownload} 
+        <Sidebar
+          onEnhance={handleEnhance}
+          resumeRef={resumeRef}
+          onFontChange={handleFontChange}
+          onColorChange={handleColorChange}
+          onDownload={handleDownload}
         />
 
-        <div 
-          style={{ 
-            flexGrow: 1, 
-            padding: "2rem", 
-            display: "flex", 
-            flexDirection: "column", 
-            alignItems: "center" 
-          }}
-        >
+        <div style={{ flexGrow: 1, padding: "2rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          {/* ── Resume root — receives all live style settings ── */}
           <div
             ref={resumeRef}
+            className="resume-root"
             style={{
-              backgroundColor: "#ffffff", 
-              color: "#1f2937", 
-              width: "794px", 
-              minHeight: "1123px", 
-              padding: "40px",
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)", 
-              fontFamily: localData.font || "serif", 
-              boxSizing: "border-box", 
-              overflow: "hidden", 
-              display: "flex", 
-              flexDirection: "column"
+              backgroundColor: "#ffffff",
+              color: "#1f2937",
+              maxWidth: "72rem",
+              width: "100%",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+              padding: "2.5rem",
+              // Live style from Design & Formatting panel
+              ...resumeBodyStyle,
             }}
           >
-            {/* HEADER */}
-            <div style={editBoxStyle}>
-              <div 
-                style={{ 
-                  borderBottom: `4px solid ${localData.textColor || "#0a91b2"}`, 
-                  paddingBottom: "1.5rem" 
-                }}
-              >
-                {editMode ? (
-                  <div style={{ display: "grid", gap: "10px" }}>
-                    <input 
-                      style={{ 
-                        fontSize: "2.2rem", 
-                        fontWeight: "bold" 
-                      }} 
-                      value={renderSafe(localData.name)} 
-                      onChange={(e) => handleInputChange("name", e.target.value)} 
-                      placeholder="Full Name" 
-                    />
-                    <input 
-                      value={renderSafe(localData.role)} 
-                      onChange={(e) => handleInputChange("role", e.target.value)} 
-                      placeholder="Title" 
-                    />
-                    <div 
-                      style={{ 
-                        display: "grid", 
-                        gridTemplateColumns: "1fr 1fr", 
-                        gap: "10px" 
-                      }}
-                    >
-                      <input 
-                        value={renderSafe(localData.phone)} 
-                        onChange={(e) => handleInputChange("phone", e.target.value)} 
-                        placeholder="Phone" 
+            {/* ── Header ── */}
+            <div style={{ borderBottom: `4px solid ${accentColor}`, paddingBottom: "1.5rem", marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  {editMode ? (
+                    <>
+                      <input
+                        type="text"
+                        value={localData.name || ""}
+                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        style={{ ...inputStyle({ fontSize: "2.25rem", fontWeight: "bold", color: accentColor, marginBottom: "0.5rem" }) }}
+                        placeholder="Your Name"
                       />
-                      <input 
-                        value={renderSafe(localData.email)} 
-                        onChange={(e) => handleInputChange("email", e.target.value)} 
-                        placeholder="Email" 
+                      <input
+                        type="text"
+                        value={localData.domain || ""}
+                        onChange={(e) => handleInputChange("domain", e.target.value)}
+                        style={{ ...inputStyle({ fontSize: "1.25rem", color: "#6b7280" }) }}
+                        placeholder="Your Professional Domain"
                       />
-                      <input 
-                        value={renderSafe(localData.linkedin)} 
-                        onChange={(e) => handleInputChange("linkedin", e.target.value)} 
-                        placeholder="LinkedIn" 
-                      />
-                      <input 
-                        value={renderSafe(localData.github)} 
-                        onChange={(e) => handleInputChange("github", e.target.value)} 
-                        placeholder="GitHub" 
-                      />
-                      <input 
-                        value={renderSafe(localData.portfolio)} 
-                        onChange={(e) => handleInputChange("portfolio", e.target.value)} 
-                        placeholder="Portfolio" 
-                      />
-                      <input 
-                        value={renderSafe(localData.location)} 
-                        onChange={(e) => handleInputChange("location", e.target.value)} 
-                        placeholder="Place" 
-                      />
+                    </>
+                  ) : (
+                    <>
+                      <h1 style={{ fontSize: "2.25rem", fontWeight: "bold", marginBottom: "0.5rem", color: accentColor }}>
+                        {localData.name || "Your Name"}
+                      </h1>
+                      <p style={{ fontSize: "1.25rem", color: "#6b7280" }}>
+                        {localData.domain || "Your Professional Domain"}
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, maxWidth: "20rem" }}>
+                  {editMode ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                      {["email", "phone", "location", "linkedin"].map((field) => (
+                        <input
+                          key={field}
+                          type={field === "email" ? "email" : field === "linkedin" ? "url" : "text"}
+                          value={localData[field] || ""}
+                          onChange={(e) => handleInputChange(field, e.target.value)}
+                          style={{ ...inputStyle({ fontSize: "0.875rem" }) }}
+                          placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.875rem", lineHeight: "1.5", textAlign: "right" }}>
+                      {localData.email && <div>{localData.email}</div>}
+                      {localData.phone && <div>{localData.phone}</div>}
+                      {localData.location && <div>{localData.location}</div>}
+                      {localData.linkedin && <div>{localData.linkedin}</div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Summary ── */}
+            <div style={{ marginBottom: "2rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={sectionHeading}>Professional Summary</h3>
+                {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("summary")}>Enhance</button>}
+              </div>
+              {editMode ? (
+                <textarea
+                  value={localData.summary || ""}
+                  onChange={(e) => handleInputChange("summary", e.target.value)}
+                  style={{ ...inputStyle({ minHeight: "4rem", resize: "vertical" }), fontSize: "0.875rem", lineHeight: "1.5" }}
+                  placeholder="Write your professional summary here..."
+                />
+              ) : (
+                <p style={{ fontSize: "0.875rem", lineHeight: "1.5", textAlign: "justify" }}>
+                  {localData.summary || "Your professional summary will appear here."}
+                </p>
+              )}
+            </div>
+
+            {/* ── Main columns ── */}
+            <div style={{ display: "flex", gap: "2rem" }}>
+              {/* Left column */}
+              <div style={{ width: "35%" }}>
+
+                {/* Skills */}
+                {(editMode || hasSkillData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Skills</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("skills")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {localData.skills?.map((skill, idx) => (
+                        <div key={idx} style={{ backgroundColor: `${accentColor}20`, color: accentColor, padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.75rem", fontWeight: "500", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          {editMode ? (
+                            <>
+                              <input type="text" value={skill} onChange={(e) => { const s = [...localData.skills]; s[idx] = e.target.value; setLocalData({ ...localData, skills: s }); }} style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.75rem", fontWeight: "500", minWidth: "50px" }} />
+                              <button onClick={() => removeItem("skills", idx)} style={{ color: "#ef4444", border: "none", background: "none", fontWeight: "bold", cursor: "pointer" }}>×</button>
+                            </>
+                          ) : skill}
+                        </div>
+                      ))}
+                      {editMode && <button onClick={() => addItem("skills", "New Skill")} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.75rem", border: "none", background: "none", cursor: "pointer" }}>+ Add Skill</button>}
                     </div>
                   </div>
-                ) : (
-                  <div 
-                    style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      alignItems: "flex-end" 
-                    }}
-                  >
-                    <div 
-                      style={{ 
-                        flex: 1, 
-                        paddingRight: '20px' 
-                      }}
-                    >
-                      <h1 
-                        style={{ 
-                          fontSize: "2.8rem", 
-                          fontWeight: "900", 
-                          color: localData.textColor || "#0a91b2", 
-                          margin: 0 
-                        }}
-                      >
-                        {renderSafe(localData.name) || "Your Name"}
-                      </h1>
-                      <p 
-                        style={{ 
-                          fontSize: "1.3rem", 
-                          color: "#4b5563", 
-                          fontWeight: "600", 
-                          margin: "5px 0" 
-                        }}
-                      >
-                        {renderSafe(localData.role) || "Professional Title"}
-                      </p>
+                )}
+
+                {/* Education */}
+                {(editMode || hasEducationData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Education</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("education")}>Enhance</button>}
                     </div>
-                    <div 
-                      style={{ 
-                        textAlign: "right", 
-                        fontSize: "0.9rem", 
-                        whiteSpace: 'nowrap' 
-                      }}
-                    >
-                      {localData.phone && (
-                        <div>
-                          <a 
-                            href={getSafeUrl("phone", localData.phone)} 
-                            style={{ 
-                              color: "inherit", 
-                              textDecoration: "none" 
-                            }}
-                          >
-                            {renderSafe(localData.phone)}
-                          </a>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {localData.education?.map((edu, idx) => (
+                        <div key={idx}>
+                          {editMode ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                              <input type="text" value={edu.degree} onChange={(e) => handleObjectChange("education", idx, "degree", e.target.value)} style={inputStyle({ fontSize: "0.875rem", fontWeight: "600" })} placeholder="Degree" />
+                              <input type="text" value={edu.institution} onChange={(e) => handleObjectChange("education", idx, "institution", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Institution" />
+                              <input type="text" value={edu.year} onChange={(e) => handleObjectChange("education", idx, "year", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Year" />
+                              <button onClick={() => removeItem("education", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>Remove</button>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.25rem" }}>{edu.degree}</h4>
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.25rem" }}>{edu.institution}</p>
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>{edu.year}</p>
+                            </>
+                          )}
                         </div>
-                      )}
-                      {localData.email && (
-                        <div>
-                          <a 
-                            href={getSafeUrl("email", localData.email)} 
-                            style={{ 
-                              color: "#3b82f6", 
-                              textDecoration: "none" 
-                            }}
-                          >
-                            {renderSafe(localData.email)}
-                          </a>
+                      ))}
+                      {editMode && <button onClick={() => addItem("education", { degree: "", institution: "", year: "" })} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>+ Add Education</button>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Achievements */}
+                {(editMode || hasAchievementData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Achievements</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("achievements")}>Enhance</button>}
+                    </div>
+                    <ul style={{ paddingLeft: "1rem", fontSize: "0.875rem", lineHeight: "1.5" }}>
+                      {localData.achievements?.map((achievement, idx) => (
+                        <li key={idx} style={{ marginBottom: "0.5rem" }}>
+                          {editMode ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <input type="text" value={achievement} onChange={(e) => { const a = [...localData.achievements]; a[idx] = e.target.value; setLocalData({ ...localData, achievements: a }); }} style={inputStyle({ flex: 1, fontSize: "0.875rem" })} placeholder="Achievement" />
+                              <button onClick={() => removeItem("achievements", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer" }}>×</button>
+                            </div>
+                          ) : achievement}
+                        </li>
+                      ))}
+                      {editMode && <li><button onClick={() => addItem("achievements", "")} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer" }}>+ Add Achievement</button></li>}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Certifications */}
+                {(editMode || hasCertificationData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Certifications</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("certifications")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {localData.certifications?.map((cert, idx) => (
+                        <div key={idx} style={{ padding: "0.75rem", backgroundColor: "#f8f9fa", borderRadius: "0.5rem", border: `1px solid ${accentColor}20` }}>
+                          {editMode ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                              <input type="text" value={cert.name} onChange={(e) => handleObjectChange("certifications", idx, "name", e.target.value)} style={inputStyle({ fontSize: "0.875rem", fontWeight: "600" })} placeholder="Certification Name" />
+                              <input type="text" value={cert.organization} onChange={(e) => handleObjectChange("certifications", idx, "organization", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Issuing Organization" />
+                              <input type="text" value={cert.year} onChange={(e) => handleObjectChange("certifications", idx, "year", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Year" />
+                              <input type="text" value={cert.credentialId || ""} onChange={(e) => handleObjectChange("certifications", idx, "credentialId", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Credential ID (optional)" />
+                              <button onClick={() => removeItem("certifications", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>Remove</button>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.25rem" }}>{cert.name}</h4>
+                              <p style={{ fontSize: "0.75rem", color: accentColor, fontWeight: "500", marginBottom: "0.25rem" }}>{cert.organization}</p>
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>{cert.year}</p>
+                              {cert.credentialId && <p style={{ fontSize: "0.75rem", color: "#6b7280", fontStyle: "italic" }}>Credential ID: {cert.credentialId}</p>}
+                            </>
+                          )}
                         </div>
-                      )}
-                      {localData.location && (
-                        <div>
-                          {renderSafe(localData.location)}
+                      ))}
+                      {editMode && <button onClick={() => addItem("certifications", { name: "", organization: "", year: "", credentialId: "" })} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>+ Add Certification</button>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Interests */}
+                {(editMode || hasInterestData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Interests</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("interests")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {localData.interests?.map((interest, idx) => (
+                        <div key={idx} style={{ backgroundColor: "#f3f4f6", color: "#374151", padding: "0.5rem 0.75rem", borderRadius: "0.5rem", fontSize: "0.875rem", fontWeight: "500", border: `1px solid ${accentColor}30`, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          {editMode ? (
+                            <>
+                              <input type="text" value={interest} onChange={(e) => { const i = [...(localData.interests || [])]; i[idx] = e.target.value; setLocalData({ ...localData, interests: i }); }} style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.875rem", minWidth: "60px", color: "#374151" }} />
+                              <button onClick={() => removeItem("interests", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer" }}>×</button>
+                            </>
+                          ) : (
+                            <>
+                              <span>
+                                {(() => {
+                                  const map = { reading: '📚', books: '📚', music: '🎵', sports: '⚽', football: '⚽', basketball: '🏀', swimming: '🏊', running: '🏃', travel: '✈️', traveling: '✈️', photography: '📷', cooking: '👨‍🍳', art: '🎨', painting: '🎨', technology: '💻', coding: '💻', gaming: '🎮', movies: '🎬', yoga: '🧘', chess: '♟️', writing: '✍️' };
+                                  const lower = interest.toLowerCase();
+                                  for (const [k, v] of Object.entries(map)) { if (lower.includes(k)) return v; }
+                                  return '🌟';
+                                })()}
+                              </span>
+                              {interest}
+                            </>
+                          )}
                         </div>
-                      )}
-                      <div 
-                        style={{ 
-                          display: "flex", 
-                          gap: "10px", 
-                          justifyContent: "flex-end", 
-                          marginTop: "5px" 
-                        }}
-                      >
-                        {localData.linkedin && (
-                          <a 
-                            href={getSafeUrl("linkedin", localData.linkedin)} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ 
-                              color: "#2563eb", 
-                              textDecoration: "none" 
-                            }}
-                          >
-                            LinkedIn
-                          </a>
-                        )}
-                        {localData.github && (
-                          <a 
-                            href={getSafeUrl("github", localData.github)} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ 
-                              color: "#2563eb", 
-                              textDecoration: "none" 
-                            }}
-                          >
-                            GitHub
-                          </a>
-                        )}
-                        {localData.portfolio && (
-                          <a 
-                            href={getSafeUrl("portfolio", localData.portfolio)} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ 
-                              color: "#2563eb", 
-                              textDecoration: "none" 
-                            }}
-                          >
-                            Portfolio
-                          </a>
-                        )}
-                      </div>
+                      ))}
+                      {editMode && <button onClick={() => addItem("interests", "New Interest")} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "1px dashed #2563eb", background: "none", padding: "0.5rem 0.75rem", borderRadius: "0.5rem", cursor: "pointer" }}>+ Add Interest</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right column */}
+              <div style={{ width: "65%" }}>
+
+                {/* Experience */}
+                {(editMode || hasExperienceData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Experience</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("experience")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                      {localData.experience?.map((exp, idx) => (
+                        <div key={idx}>
+                          {editMode ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                              <input type="text" value={exp.title} onChange={(e) => handleObjectChange("experience", idx, "title", e.target.value)} style={inputStyle({ fontSize: "1rem", fontWeight: "600" })} placeholder="Job Title" />
+                              <input type="text" value={exp.company} onChange={(e) => handleObjectChange("experience", idx, "company", e.target.value)} style={inputStyle({ fontSize: "0.875rem", color: accentColor })} placeholder="Company" />
+                              <input type="text" value={exp.duration} onChange={(e) => handleObjectChange("experience", idx, "duration", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Duration" />
+                              <textarea value={exp.description} onChange={(e) => handleObjectChange("experience", idx, "description", e.target.value)} style={{ ...inputStyle({ fontSize: "0.875rem", lineHeight: "1.5", minHeight: "4rem", resize: "vertical" }) }} placeholder="Job description and responsibilities" />
+                              <button onClick={() => removeItem("experience", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>Remove Experience</button>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 style={{ fontSize: "1rem", fontWeight: "600", marginBottom: "0.25rem" }}>{exp.title}</h4>
+                              <p style={{ fontSize: "0.875rem", color: accentColor, fontWeight: "500", marginBottom: "0.25rem" }}>{exp.company}</p>
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.5rem" }}>{exp.duration}</p>
+                              <p style={{ fontSize: "0.875rem", lineHeight: "1.5", textAlign: "justify" }}>{exp.description}</p>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {editMode && <button onClick={() => addItem("experience", { title: "", company: "", duration: "", description: "" })} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>+ Add Experience</button>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Languages */}
+                {(editMode || hasLanguagesData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Languages</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("languages")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {localData.languages?.map((lang, idx) => (
+                        <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem", backgroundColor: "#f8f9fa", borderRadius: "0.5rem", border: `1px solid ${accentColor}20` }}>
+                          {editMode ? (
+                            <>
+                              <div style={{ display: "flex", gap: "0.5rem", flex: 1 }}>
+                                <input type="text" value={lang.language} onChange={(e) => handleObjectChange("languages", idx, "language", e.target.value)} style={{ ...inputStyle({ flex: 1, fontSize: "0.875rem", fontWeight: "600" }), width: "auto" }} placeholder="Language" />
+                                <select value={lang.proficiency} onChange={(e) => handleObjectChange("languages", idx, "proficiency", e.target.value)} style={{ fontSize: "0.875rem", border: "1px solid #d1d5db", borderRadius: "0.25rem", padding: "0.25rem 0.5rem", outline: "none", backgroundColor: "white" }}>
+                                  {["Native", "Fluent", "Advanced", "Intermediate", "Basic"].map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                              </div>
+                              <button onClick={() => removeItem("languages", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer", marginLeft: "0.5rem" }}>×</button>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ fontSize: "0.875rem", fontWeight: "600", color: "#374151" }}>{lang.language}</span>
+                              <span style={{ fontSize: "0.75rem", backgroundColor: { Native: '#10b981', Fluent: '#3b82f6', Advanced: '#8b5cf6', Intermediate: '#f59e0b', Basic: '#ef4444' }[lang.proficiency] || '#6b7280', color: "white", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontWeight: "500" }}>{lang.proficiency}</span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {editMode && <button onClick={() => addItem("languages", { language: "New Language", proficiency: "Intermediate" })} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer" }}>+ Add Language</button>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Projects */}
+                {(editMode || hasProjectData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>Projects</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("projects")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                      {localData.projects?.map((project, idx) => (
+                        <div key={idx}>
+                          {editMode ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                              <input type="text" value={project.name} onChange={(e) => handleObjectChange("projects", idx, "name", e.target.value)} style={inputStyle({ fontSize: "1rem", fontWeight: "600" })} placeholder="Project Name" />
+                              <input type="text" value={project.technologies} onChange={(e) => handleObjectChange("projects", idx, "technologies", e.target.value)} style={inputStyle({ fontSize: "0.875rem", color: accentColor })} placeholder="Technologies Used" />
+                              <textarea value={project.description} onChange={(e) => handleObjectChange("projects", idx, "description", e.target.value)} style={{ ...inputStyle({ fontSize: "0.875rem", lineHeight: "1.5", minHeight: "4rem", resize: "vertical" }) }} placeholder="Project description" />
+                              <button onClick={() => removeItem("projects", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>Remove Project</button>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 style={{ fontSize: "1rem", fontWeight: "600", marginBottom: "0.25rem" }}>{project.name}</h4>
+                              <p style={{ fontSize: "0.875rem", color: accentColor, fontWeight: "500", marginBottom: "0.5rem" }}>{project.technologies}</p>
+                              <p style={{ fontSize: "0.875rem", lineHeight: "1.5", textAlign: "justify" }}>{project.description}</p>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {editMode && <button onClick={() => addItem("projects", { name: "", technologies: "", description: "" })} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>+ Add Project</button>}
+                    </div>
+                  </div>
+                )}
+
+                {/* References */}
+                {(editMode || hasReferencesData) && (
+                  <div style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3 style={sectionHeading}>References</h3>
+                      {editMode && <button style={enhanceBtn} onClick={() => handleEnhance("references")}>Enhance</button>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {localData.references?.map((ref, idx) => (
+                        <div key={idx} style={{ padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "0.5rem", border: `1px solid ${accentColor}20` }}>
+                          {editMode ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                              <input type="text" value={ref.name} onChange={(e) => handleObjectChange("references", idx, "name", e.target.value)} style={inputStyle({ fontSize: "0.875rem", fontWeight: "600" })} placeholder="Reference Name" />
+                              <input type="text" value={ref.title} onChange={(e) => handleObjectChange("references", idx, "title", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Title/Position" />
+                              <input type="email" value={ref.contact} onChange={(e) => handleObjectChange("references", idx, "contact", e.target.value)} style={inputStyle({ fontSize: "0.75rem" })} placeholder="Contact Information" />
+                              <button onClick={() => removeItem("references", idx)} style={{ color: "#ef4444", fontWeight: "bold", border: "none", background: "none", cursor: "pointer", alignSelf: "flex-start" }}>Remove Reference</button>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.25rem" }}>{ref.name}</h4>
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.25rem" }}>{ref.title}</p>
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>{ref.contact}</p>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {editMode && <button onClick={() => addItem("references", { name: "", title: "", contact: "" })} style={{ color: "#2563eb", fontWeight: "bold", fontSize: "0.875rem", border: "none", background: "none", cursor: "pointer" }}>+ Add Reference</button>}
                     </div>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* DYNAMIC TWO-COLUMN BODY */}
-            <div 
-              style={{ 
-                display: "flex", 
-                gap: "2.5rem", 
-                flex: 1 
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                {(sectionOrder || [])
-                  .slice(0, Math.ceil((sectionOrder || []).length / 2))
-                  .map(key => sectionComponents[key] || null)
-                }
-              </div>
-              <div style={{ flex: 1.5 }}>
-                {(sectionOrder || [])
-                  .slice(Math.ceil((sectionOrder || []).length / 2))
-                  .map(key => sectionComponents[key] || null)
-                }
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS */}
-            <div 
-              data-html2canvas-ignore="true" 
-              style={{ 
-                marginTop: "auto", 
-                paddingTop: "40px", 
-                display: "flex", 
-                gap: "1.5rem", 
-                justifyContent: "center" 
-              }}
-            >
-              {editMode ? (
-                <>
-                  <button 
-                    onClick={handleSave} 
-                    style={{ 
-                      backgroundColor: "#10b981", 
-                      color: "white", 
-                      padding: "0.7rem 2.5rem", 
-                      borderRadius: "8px", 
-                      border: "none", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}
-                  >
-                    Save Changes
-                  </button>
-                  <button 
-                    onClick={handleCancel} 
-                    style={{ 
-                      backgroundColor: "#ef4444", 
-                      color: "white", 
-                      padding: "0.7rem 2.5rem", 
-                      borderRadius: "8px", 
-                      border: "none", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button 
-                  onClick={() => setEditMode(true)} 
-                  style={{ 
-                    backgroundColor: "#1f2937", 
-                    color: "white", 
-                    padding: "0.8rem 3.5rem", 
-                    borderRadius: "8px", 
-                    border: "none", 
-                    cursor: "pointer", 
-                    fontWeight: "bold" 
-                  }}
+          {/* ── Edit / Save buttons ── */}
+          <div style={{ display: "flex", gap: "1rem", marginTop: "2rem", alignItems: "center" }}>
+            {editMode ? (
+              <>
+                <button
+                  onClick={typeof updateResumeData === 'function' ? handleSave : handleSaveLocal}
+                  disabled={saveStatus === 'Saving...'}
+                  style={{ backgroundColor: saveStatus === 'Saving...' ? "#9ca3af" : "#10b981", color: "white", padding: "0.75rem 1.5rem", borderRadius: "0.5rem", border: "none", fontSize: "1rem", fontWeight: "600", cursor: saveStatus === 'Saving...' ? "not-allowed" : "pointer" }}
                 >
-                  Edit Resume
+                  {saveStatus === 'Saving...' ? 'Saving...' : 'Save Changes'}
                 </button>
-              )}
-            </div>
+                <button onClick={handleCancel} disabled={saveStatus === 'Saving...'} style={{ backgroundColor: "#6b7280", color: "white", padding: "0.75rem 1.5rem", borderRadius: "0.5rem", border: "none", fontSize: "1rem", fontWeight: "600", cursor: "pointer" }}>Cancel</button>
+                {saveStatus && <span style={{ fontSize: "0.875rem", color: saveStatus.includes('Error') ? "#ef4444" : "#10b981", fontWeight: "500" }}>{saveStatus}</span>}
+              </>
+            ) : (
+              <button onClick={() => setEditMode(true)} style={{ backgroundColor: "#2563eb", color: "white", padding: "0.75rem 1.5rem", borderRadius: "0.5rem", border: "none", fontSize: "1rem", fontWeight: "600", cursor: "pointer" }}>Edit Resume</button>
+            )}
           </div>
         </div>
       </div>
-      {showLoginPrompt && (
-        <LoginPrompt 
-          onClose={() => setShowLoginPrompt(false)} 
-        />
-      )}
+
+      {showLoginPrompt && <LoginPrompt onClose={() => setShowLoginPrompt(false)} />}
     </div>
   );
 };
 
-export default Template1;
+export default Template26;

@@ -1,843 +1,1714 @@
-import React, { 
-  useState, 
-  useRef, 
-  useEffect 
-} from "react";
-import useUndoRedo from "../../hooks/useUndoRedo";
+/* eslint-disable no-unused-vars */
+import { MapPin, Phone, Mail, Linkedin, Github, Globe } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
-import {
-  Mail,
-  Phone,
-  MapPin,
-  Linkedin,
-  Github,
-  Briefcase,
-  GraduationCap,
-  User,
-  Award,
-  Globe,
-  Calendar,
-  Code,
-  BookOpen,
-  Heart,
-  Scroll,
-  Plus,
-  Trash2,
-  ExternalLink
-} from "lucide-react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import { toast } from "react-toastify";
+import useResumeBodyStyle from "../../hooks/useResumeBodyStyle";
 
-const Template13 = () => {
-  const resumeRef = useRef(null);
-  const { 
-    resumeData, 
-    updateResumeData, 
-    sectionOrder 
-  } = useResume();
-  
-  const [editMode, setEditMode] = useState(false);
-  const {
-    state: localData,
-    setState: setLocalData,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useUndoRedo(resumeData || {});
+// ---------- DATA HELPERS / NORMALIZATION (aligned with Template2) ----------
 
-  const [templateSettings, setTemplateSettings] = useState({
-    fontFamily: "'Inter', sans-serif",
-    primaryColor: "#1e40af",
-    secondaryColor: "#64748b",
-    accentColor: "#f59e0b",
-    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80",
-  });
-
-  const [uploadedPhoto, setUploadedPhoto] = useState(null);
-
-  /**
-   * ChipInput Component
-   * Handles Skills, Languages, and Interests
-   */
-  const ChipInput = ({ 
-    chips = [], 
-    onChange, 
-    placeholder = "Add item" 
-  }) => {
-    const inputRef = useRef(null);
-    
-    useEffect(() => { 
-      if (!Array.isArray(chips)) { 
-        onChange([]); 
-      } 
-    }, []);
-
-    const addChip = (value) => {
-      const v = String(value || "").trim();
-      if (!v) return;
-      const exists = chips.some((c) => c.toLowerCase() === v.toLowerCase());
-      if (exists) return;
-      onChange([...chips, v]);
-    };
-
-    const removeChip = (index) => {
-      const newChips = [...chips];
-      newChips.splice(index, 1);
-      onChange(newChips);
-    };
-
-    return (
-      <div className="flex flex-wrap gap-2 items-center">
-        {chips.map((chip, idx) => (
-          <span 
-            key={idx} 
-            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center gap-2"
-          >
-            <span className="text-sm font-medium">{chip}</span>
-            <button 
-              type="button" 
-              onClick={() => removeChip(idx)} 
-              className="text-red-500 font-bold ml-1"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          className="p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400 min-w-[140px]"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
-              e.preventDefault();
-              addChip(e.target.value);
-              e.target.value = "";
-            } else if (e.key === "Backspace" && !e.target.value && chips.length) {
-              removeChip(chips.length - 1);
-            }
-          }}
-        />
-      </div>
-    );
-  };
-
-  useEffect(() => {
-    if (resumeData) {
-      setLocalData({
-        ...resumeData,
-        projects: resumeData.projects || [],
-        certifications: resumeData.certifications || [],
-        achievements: resumeData.achievements || [],
-        courses: resumeData.courses || [],
-        interests: resumeData.interests || [],
-        skills: resumeData.skills || [],
-        languages: resumeData.languages || [],
-        experience: resumeData.experience || [],
-        education: resumeData.education || [],
-      });
-    }
-  }, [resumeData]);
-
-  const handleFieldChange = (field, value) => {
-    setLocalData(prev => ({ 
-      ...prev, 
-      [field]: value 
-    }));
-  };
-
-  const handleNestedChange = (arrayKey, index, field, value) => {
-    setLocalData(prev => ({
-      ...prev,
-      [arrayKey]: prev[arrayKey].map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ),
-    }));
-  };
-
-  const handleAddItem = (section, template) => {
-    setLocalData(prev => ({
-      ...prev,
-      [section]: [...(prev[section] || []), template],
-    }));
-  };
-
-  const handleRemoveItem = (section, index) => {
-    setLocalData(prev => ({
-      ...prev,
-      [section]: prev[section].filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleSave = () => {
-    updateResumeData(localData);
-    setEditMode(false);
-    toast.success("Resume saved successfully!");
-  };
-
-  const handleCancel = () => {
-    setLocalData(resumeData);
-    setEditMode(false);
-  };
-
-  const handlePhotoChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedPhoto(reader.result);
-        setTemplateSettings((prev) => ({ 
-          ...prev, 
-          photo: reader.result 
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleDownload = async () => {
-    const element = resumeRef.current;
-    if (!element) return;
-    try {
-      const canvas = await html2canvas(element, { 
-        scale: 2, 
-        useCORS: true 
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ 
-        orientation: "portrait", 
-        unit: "mm", 
-        format: "a4" 
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${localData.name || "Resume"}.pdf`);
-    } catch (error) { 
-      console.error("PDF Error", error); 
-    }
-  };
-
-  const SectionHeading = ({ title, icon: Icon }) => (
-    <div className="flex items-center gap-3 mb-6 mt-4 first:mt-0">
-      <div className="w-1 h-8 bg-gradient-to-b from-blue-600 to-blue-800 rounded-full"></div>
-      <div className="flex items-center gap-2">
-        {Icon && <Icon className="w-5 h-5 text-blue-600" />}
-        <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide">
-          {title}
-        </h2>
-      </div>
-    </div>
-  );
-
-  const renderSection = (sectionKey) => {
-    switch (sectionKey) {
-      case "summary":
-        return (editMode || localData.summary) && (
-          <div key="summary" className="mb-8">
-            <SectionHeading title="Professional Summary" icon={User} />
-            {editMode ? (
-              <textarea 
-                value={localData.summary} 
-                onChange={(e) => handleFieldChange("summary", e.target.value)} 
-                className="w-full text-gray-700 leading-relaxed p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                rows={4} 
-              />
-            ) : (
-              <p className="text-gray-700 leading-relaxed text-lg">
-                {localData.summary}
-              </p>
-            )}
-          </div>
-        );
-
-      case "experience":
-        return (editMode || localData.experience?.length > 0) && (
-          <div key="experience" className="mb-8">
-            <SectionHeading title="Experience" icon={Briefcase} />
-            <div className="space-y-6">
-              {localData.experience?.map((exp, i) => (
-                <div 
-                  key={i} 
-                  className="bg-gray-50 rounded-xl p-6 border-l-4 border-blue-600 relative"
-                >
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("experience", i)} 
-                      className="absolute top-2 right-2 text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={exp.title} 
-                        onChange={(e) => handleNestedChange("experience", i, "title", e.target.value)} 
-                        className="w-full font-bold p-2 border rounded" 
-                        placeholder="Job Title" 
-                      />
-                      <input 
-                        type="text" 
-                        value={exp.companyName} 
-                        onChange={(e) => handleNestedChange("experience", i, "companyName", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        placeholder="Company" 
-                      />
-                      <input 
-                        type="text" 
-                        value={exp.date} 
-                        onChange={(e) => handleNestedChange("experience", i, "date", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        placeholder="Date Range" 
-                      />
-                      <textarea 
-                        value={exp.accomplishment} 
-                        onChange={(e) => handleNestedChange("experience", i, "accomplishment", [e.target.value])} 
-                        className="w-full p-2 border rounded" 
-                        rows={3} 
-                        placeholder="Description" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className="text-xl font-bold text-gray-800">
-                        {exp.title}
-                      </h3>
-                      <div className="flex items-center gap-4 text-blue-600 font-semibold mb-2">
-                        <span>{exp.companyName}</span>
-                        <span className="text-gray-400 font-normal">|</span>
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                          <Calendar size={14} />
-                          {exp.date}
-                        </span>
-                      </div>
-                      <p className="text-gray-700">
-                        {Array.isArray(exp.accomplishment) ? exp.accomplishment[0] : exp.accomplishment}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("experience", { title: "", companyName: "", date: "", accomplishment: [""] })} 
-                  className="text-blue-600 font-bold flex items-center gap-1"
-                >
-                  <Plus size={18}/> Add Experience
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "projects":
-        return (editMode || localData.projects?.length > 0) && (
-          <div key="projects" className="mb-8">
-            <SectionHeading title="Projects" icon={Code} />
-            <div className="grid grid-cols-1 gap-6">
-              {localData.projects?.map((proj, i) => (
-                <div 
-                  key={i} 
-                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative"
-                >
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("projects", i)} 
-                      className="absolute top-2 right-2 text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={proj.name} 
-                        onChange={(e) => handleNestedChange("projects", i, "name", e.target.value)} 
-                        className="w-full font-bold p-2 border rounded" 
-                        placeholder="Project Name" 
-                      />
-                      <input 
-                        type="text" 
-                        value={proj.link} 
-                        onChange={(e) => handleNestedChange("projects", i, "link", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        placeholder="Project Link" 
-                      />
-                      <textarea 
-                        value={proj.description} 
-                        onChange={(e) => handleNestedChange("projects", i, "description", e.target.value)} 
-                        className="w-full p-2 border rounded" 
-                        rows={3} 
-                        placeholder="Description" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-xl font-bold text-gray-800">
-                          {proj.name}
-                        </h3>
-                        {proj.link && (
-                          <a 
-                            href={proj.link} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-blue-600 flex items-center gap-1 text-sm"
-                          >
-                            <ExternalLink size={14} /> View
-                          </a>
-                        )}
-                      </div>
-                      <p className="text-gray-600 leading-relaxed">
-                        {proj.description}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("projects", { name: "", link: "", description: "" })} 
-                  className="text-blue-600 font-bold flex items-center gap-1"
-                >
-                  <Plus size={18}/> Add Project
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "education":
-        return (editMode || localData.education?.length > 0) && (
-          <div key="education" className="mb-8">
-            <SectionHeading title="Education" icon={GraduationCap} />
-            <div className="space-y-4">
-              {localData.education?.map((edu, i) => (
-                <div key={i} className="bg-blue-50/50 rounded-xl p-4 relative">
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("education", i)} 
-                      className="absolute top-2 right-2 text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={edu.degree} 
-                        onChange={(e) => handleNestedChange("education", i, "degree", e.target.value)} 
-                        className="w-full font-bold p-1 border rounded" 
-                      />
-                      <input 
-                        type="text" 
-                        value={edu.institution} 
-                        onChange={(e) => handleNestedChange("education", i, "institution", e.target.value)} 
-                        className="w-full p-1 border rounded" 
-                      />
-                      <input 
-                        type="text" 
-                        value={edu.duration} 
-                        onChange={(e) => handleNestedChange("education", i, "duration", e.target.value)} 
-                        className="w-full p-1 border rounded" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className="text-lg font-bold text-gray-800">
-                        {edu.degree}
-                      </h3>
-                      <p className="text-blue-700 font-medium">
-                        {edu.institution}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {edu.duration}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("education", { degree: "", institution: "", duration: "" })} 
-                  className="text-blue-600 font-bold flex items-center gap-1 text-sm"
-                >
-                  <Plus size={14}/> Add Education
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "skills":
-        return (editMode || localData.skills?.length > 0) && (
-          <div key="skills" className="mb-8">
-            <SectionHeading title="Skills" icon={Award} />
-            {editMode ? (
-              <ChipInput 
-                chips={localData.skills} 
-                onChange={(newChips) => handleFieldChange("skills", newChips)} 
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {localData.skills?.map((skill, i) => (
-                  <span 
-                    key={i} 
-                    className="bg-blue-100 text-blue-800 px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      case "certifications":
-        return (editMode || localData.certifications?.length > 0) && (
-          <div key="certifications" className="mb-8">
-            <SectionHeading title="Certifications" icon={Scroll} />
-            <div className="space-y-3">
-              {localData.certifications?.map((cert, i) => (
-                <div key={i} className="flex items-start gap-3 relative">
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("certifications", i)} 
-                      className="text-red-500 mt-1"
-                    >
-                      <Trash2 size={14}/>
-                    </button>
-                  )}
-                  <div>
-                    {editMode ? (
-                      <input 
-                        value={cert.title} 
-                        onChange={(e) => handleNestedChange("certifications", i, "title", e.target.value)} 
-                        className="font-bold border-b border-gray-300 outline-none" 
-                      />
-                    ) : (
-                      <p className="font-bold text-gray-800">
-                        {cert.title}
-                      </p>
-                    )}
-                    <p className="text-sm text-gray-500">
-                      {cert.issuer} • {cert.date}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("certifications", { title: "", issuer: "", date: "" })} 
-                  className="text-blue-600 font-bold text-xs"
-                >
-                  + Add Cert
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "achievements":
-        return (editMode || localData.achievements?.length > 0) && (
-          <div key="achievements" className="mb-8">
-            <SectionHeading title="Achievements" icon={Award} />
-            <ul className="list-disc list-inside space-y-2 text-gray-700">
-              {localData.achievements?.map((ach, i) => (
-                <li key={i} className="relative group">
-                  {editMode ? (
-                    <input 
-                      value={typeof ach === 'string' ? ach : ach.title} 
-                      onChange={(e) => {
-                        const newAch = [...localData.achievements];
-                        newAch[i] = e.target.value;
-                        handleFieldChange("achievements", newAch);
-                      }} 
-                      className="w-11/12 border-b border-gray-300 outline-none" 
-                    />
-                  ) : (
-                    <span>{typeof ach === 'string' ? ach : ach.title}</span>
-                  )}
-                  {editMode && (
-                    <button 
-                      onClick={() => handleRemoveItem("achievements", i)} 
-                      className="text-red-500 ml-2"
-                    >
-                      <Trash2 size={12}/>
-                    </button>
-                  )}
-                </li>
-              ))}
-              {editMode && (
-                <button 
-                  onClick={() => handleAddItem("achievements", "New Achievement")} 
-                  className="text-blue-600 font-bold text-xs"
-                >
-                  + Add Achievement
-                </button>
-              )}
-            </ul>
-          </div>
-        );
-
-      case "languages":
-        return (editMode || localData.languages?.length > 0) && (
-          <div key="languages" className="mb-8">
-            <SectionHeading title="Languages" icon={Globe} />
-            {editMode ? (
-              <ChipInput 
-                chips={localData.languages} 
-                onChange={(newChips) => handleFieldChange("languages", newChips)} 
-              />
-            ) : (
-              <div className="flex flex-wrap gap-4">
-                {localData.languages?.map((lang, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"/> 
-                    <span className="font-medium text-gray-700">{lang}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      case "interests":
-        return (editMode || localData.interests?.length > 0) && (
-          <div key="interests" className="mb-8">
-            <SectionHeading title="Interests" icon={Heart} />
-            {editMode ? (
-              <ChipInput 
-                chips={localData.interests} 
-                onChange={(newChips) => handleFieldChange("interests", newChips)} 
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {localData.interests?.map((int, i) => (
-                  <span 
-                    key={i} 
-                    className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium"
-                  >
-                    {int}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      default: 
-        return null;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <Navbar />
-      <div className="flex">
-        <Sidebar 
-          onDownload={handleDownload} 
-          onSave={handleSave} 
-          resumeRef={resumeRef} 
-        />
-        
-          {/* Undo/Redo Buttons */}
-          <div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}} data-pdf-hide="true">
-            <button
-              onClick={undo}
-              disabled={!canUndo}
-              style={{padding: "8px 16px", background: canUndo ? "#4f46e5" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canUndo ? "pointer" : "not-allowed"}}
-              title="Undo"
-            >
-              ↩ Undo
-            </button>
-            <button
-              onClick={redo}
-              disabled={!canRedo}
-              style={{padding: "8px 16px", background: canRedo ? "#0891b2" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canRedo ? "pointer" : "not-allowed"}}
-              title="Redo"
-            >
-              Redo ↪
-            </button>
-          </div>
-<div className="flex-grow p-8 flex flex-col items-center pb-24">
-          <div 
-            ref={resumeRef} 
-            style={{ 
-              fontFamily: templateSettings.fontFamily, 
-              backgroundColor: "#ffffff", 
-              borderRadius: "1rem", 
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)", 
-              maxWidth: "210mm", 
-              width: "100%", 
-              minHeight: "297mm" 
-            }}
-          >
-            
-            {/* Header Section */}
-            <div 
-              style={{ 
-                background: "linear-gradient(to right, #2563eb, #1e40af)", 
-                color: "#ffffff", 
-                padding: "2.5rem" 
-              }} 
-              className="rounded-t-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  {editMode ? (
-                    <div className="space-y-2">
-                      <input 
-                        type="text" 
-                        value={localData.name} 
-                        onChange={(e) => handleFieldChange("name", e.target.value)} 
-                        className="text-4xl font-bold bg-transparent border-b-2 border-white/30 w-full outline-none" 
-                      />
-                      <input 
-                        type="text" 
-                        value={localData.role} 
-                        onChange={(e) => handleFieldChange("role", e.target.value)} 
-                        className="text-xl text-blue-200 bg-transparent border-b-2 border-white/30 w-full outline-none" 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <h1 className="text-4xl font-bold mb-2 tracking-tight">
-                        {localData.name}
-                      </h1>
-                      <p className="text-xl text-blue-100 font-medium">
-                        {localData.role}
-                      </p>
-                    </>
-                  )}
-                </div>
-                <div className="relative group">
-                  <img 
-                    src={uploadedPhoto || templateSettings.photo} 
-                    alt="Profile" 
-                    className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover" 
-                  />
-                  {editMode && (
-                    <label 
-                      htmlFor="photo-upload" 
-                      className="absolute bottom-0 right-0 bg-white p-2 rounded-full text-blue-600 shadow-lg cursor-pointer"
-                    >
-                      <Plus size={20} />
-                      <input 
-                        id="photo-upload" 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handlePhotoChange} 
-                        className="hidden" 
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Bar */}
-            <div className="bg-gray-800 text-white px-8 py-5 flex flex-wrap justify-between gap-4 text-sm shadow-inner">
-              <div className="flex items-center gap-2">
-                <Mail className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.email} 
-                    onChange={(e) => handleFieldChange("email", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <a href={`mailto:${localData.email}`} style={{color:"inherit"}} target="_blank" rel="noopener noreferrer">{localData.email}</a>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Phone className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.phone} 
-                    onChange={(e) => handleFieldChange("phone", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <span>{localData.phone}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.location} 
-                    onChange={(e) => handleFieldChange("location", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <span>{localData.location}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Linkedin className="text-yellow-400" size={16} />
-                {editMode ? (
-                  <input 
-                    value={localData.linkedin} 
-                    onChange={(e) => handleFieldChange("linkedin", e.target.value)} 
-                    className="bg-transparent border-b border-gray-600" 
-                  />
-                ) : (
-                  <a href={(localData.linkedin && !/^https?:\/\//i.test(localData.linkedin)) ? `https://\${localData.linkedin} target="_blank" rel="noopener noreferrer"` : localData.linkedin} className="hover:underline">
-                    LinkedIn Profile
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* DYNAMIC BODY */}
-            <div className="p-10 space-y-2">
-              {sectionOrder.map((sectionKey) => (
-                <React.Fragment key={sectionKey}>
-                  {renderSection(sectionKey)}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="mt-10 flex gap-6">
-            {editMode ? (
-              <>
-                <button 
-                  onClick={handleSave} 
-                  className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all"
-                >
-                  Save Changes
-                </button>
-                <button 
-                  onClick={handleCancel} 
-                  className="bg-gray-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={() => setEditMode(true)} 
-                className="bg-blue-600 text-white px-10 py-4 rounded-xl font-bold shadow-xl hover:bg-blue-700 transition-all transform hover:scale-105"
-              >
-                Edit Resume
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+const DEFAULT_RESUME = {
+    name: "",
+    role: "",
+    phone: "",
+    email: "",
+    linkedin: "",
+    location: "",
+    github: "",
+    portfolio: "",
+    summary: "",
+    skills: [],
+    experience: [],
+    education: [],
+    projects: [],
+    certifications: [],
+    achievements: [],
+    languages: [],
+    interests: [],
 };
 
-export default Template13;
+const EMPTY_EXPERIENCE = {
+    title: "",
+    companyName: "",
+    date: "",
+    companyLocation: "",
+    accomplishment: [""],
+};
+
+const EMPTY_EDUCATION = {
+    degree: "",
+    institution: "",
+    duration: "",
+    location: "",
+};
+
+const EMPTY_PROJECT = {
+    name: "",
+    description: "",
+    technologies: [],
+    link: "",
+    github: "",
+};
+
+const EMPTY_CERTIFICATION = {
+    title: "",
+    issuer: "",
+    date: "",
+};
+
+const safeArray = (val) => (Array.isArray(val) ? val : []);
+
+// Strings used as fake placeholders – treat them as empty
+const PLACEHOLDERS = new Set([
+    "Company Name",
+    "Job Title",
+    "YYYY - YYYY",
+    "City, Country",
+    "Describe your work here.",
+    "Degree",
+    "Institution",
+    "Project Name",
+    "Short project description.",
+    "Tech1",
+    "Tech2",
+    "Certification Title",
+    "Issuer",
+    "New Skill",
+    "New Achievement",
+    "New Language",
+    "New Interest",
+]);
+
+const hasText = (val) => {
+    if (typeof val !== "string") return false;
+    const trimmed = val.trim();
+    if (!trimmed) return false;
+    if (PLACEHOLDERS.has(trimmed)) return false;
+    const lower = trimmed.toLowerCase();
+    if (trimmed === "-" || lower === "n/a" || lower === "na") return false;
+    return true;
+};
+
+const cleanText = (val) => (hasText(val) ? val.trim() : "");
+
+const hasNonEmptyStringArray = (arr) =>
+    safeArray(arr).some((v) => hasText(v));
+
+const hasExperienceContent = (exp) =>
+    hasText(exp?.companyName) ||
+    hasText(exp?.title) ||
+    hasText(exp?.date) ||
+    hasText(exp?.companyLocation) ||
+    hasNonEmptyStringArray(exp?.accomplishment);
+
+const hasEducationContent = (edu) =>
+    hasText(edu?.institution) ||
+    hasText(edu?.degree) ||
+    hasText(edu?.duration) ||
+    hasText(edu?.location);
+
+const hasProjectContent = (p) =>
+    hasText(p?.name) ||
+    hasText(p?.description) ||
+    hasNonEmptyStringArray(p?.technologies) ||
+    hasText(p?.link) ||
+    hasText(p?.github);
+
+const hasCertificationContent = (c) =>
+    hasText(c?.title) || hasText(c?.issuer) || hasText(c?.date);
+
+const normalizeData = (raw) => {
+    const data = {
+        ...DEFAULT_RESUME,
+        ...(raw || {}),
+    };
+
+    // Headline + contacts + summary
+    data.name = cleanText(data.name);
+    data.role = cleanText(data.role);
+    data.phone = cleanText(data.phone);
+    data.email = cleanText(data.email);
+    data.location = cleanText(data.location);
+    data.linkedin = cleanText(data.linkedin);
+    data.github = cleanText(data.github);
+    data.portfolio = cleanText(data.portfolio);
+    data.summary = cleanText(data.summary);
+
+    // Simple lists
+    data.skills = safeArray(data.skills).filter(hasText);
+    data.achievements = safeArray(data.achievements).filter(hasText);
+    data.languages = safeArray(data.languages).filter(hasText);
+    data.interests = safeArray(data.interests).filter(hasText);
+
+    // Experience
+    data.experience = safeArray(data.experience)
+        .map((exp) => ({
+            title: cleanText(exp?.title),
+            companyName: cleanText(exp?.companyName),
+            date: cleanText(exp?.date),
+            companyLocation: cleanText(exp?.companyLocation),
+            accomplishment: safeArray(exp?.accomplishment).filter(hasText),
+        }))
+        .filter(hasExperienceContent);
+
+    // Education
+    data.education = safeArray(data.education)
+        .map((edu) => ({
+            degree: cleanText(edu?.degree),
+            institution: cleanText(edu?.institution),
+            duration: cleanText(edu?.duration),
+            location: cleanText(edu?.location),
+        }))
+        .filter(hasEducationContent);
+
+    // Projects
+    data.projects = safeArray(data.projects)
+        .map((p) => ({
+            name: cleanText(p?.name),
+            description: cleanText(p?.description),
+            technologies: safeArray(p?.technologies).filter(hasText),
+            link: cleanText(p?.link),
+            github: cleanText(p?.github || p?.githubLink),
+        }))
+        .filter(hasProjectContent);
+
+    // Certifications
+    data.certifications = safeArray(data.certifications)
+        .map((c) => ({
+            title: cleanText(c?.title),
+            issuer: cleanText(c?.issuer),
+            date: cleanText(c?.date),
+        }))
+        .filter(hasCertificationContent);
+
+    return data;
+};
+
+// Build edit-mode state from normalized saved data
+const buildEditingState = (savedRaw) => {
+    const saved = normalizeData(savedRaw);
+
+    const experience =
+        safeArray(saved.experience).length > 0
+            ? safeArray(saved.experience).map((exp) => ({
+                title: exp.title || "",
+                companyName: exp.companyName || "",
+                date: exp.date || "",
+                companyLocation: exp.companyLocation || "",
+                accomplishment:
+                    safeArray(exp.accomplishment).length > 0
+                        ? safeArray(exp.accomplishment)
+                        : [""],
+            }))
+            : [JSON.parse(JSON.stringify(EMPTY_EXPERIENCE))];
+
+    const education =
+        safeArray(saved.education).length > 0
+            ? safeArray(saved.education).map((edu) => ({
+                degree: edu.degree || "",
+                institution: edu.institution || "",
+                duration: edu.duration || "",
+                location: edu.location || "",
+            }))
+            : [JSON.parse(JSON.stringify(EMPTY_EDUCATION))];
+
+    const projects =
+        safeArray(saved.projects).length > 0
+            ? safeArray(saved.projects).map((p) => ({
+                name: p.name || "",
+                description: p.description || "",
+                technologies: safeArray(p.technologies),
+                link: p.link || "",
+                github: p.github || "",
+            }))
+            : [JSON.parse(JSON.stringify(EMPTY_PROJECT))];
+
+    const certifications =
+        safeArray(saved.certifications).length > 0
+            ? safeArray(saved.certifications).map((c) => ({
+                title: c.title || "",
+                issuer: c.issuer || "",
+                date: c.date || "",
+            }))
+            : [JSON.parse(JSON.stringify(EMPTY_CERTIFICATION))];
+
+    const skills =
+        safeArray(saved.skills).length > 0 ? safeArray(saved.skills) : [""];
+    const achievements =
+        safeArray(saved.achievements).length > 0
+            ? safeArray(saved.achievements)
+            : [""];
+    const languages =
+        safeArray(saved.languages).length > 0 ? safeArray(saved.languages) : [""];
+    const interests =
+        safeArray(saved.interests).length > 0 ? safeArray(saved.interests) : [""];
+
+    return {
+        ...DEFAULT_RESUME,
+        ...saved,
+        experience,
+        education,
+        projects,
+        certifications,
+        skills,
+        achievements,
+        languages,
+        interests,
+    };
+};
+
+// shared input style for contact row
+const contactInputStyle = {
+    border: "none",
+    borderBottom: "1px solid #d1d5db",
+    outline: "none",
+    background: "transparent",
+    width: "100%",
+    marginBottom: "0.4rem",
+    fontSize: "0.95rem",
+};
+
+const contactRowItemStyle = {
+    display: "flex",
+    alignItems: "center",
+    fontSize: "0.95rem",
+    marginBottom: "0.25rem",
+    color: "#374151",
+};
+
+// ---------- COMPONENT ----------
+
+const Template17 = () => {
+    const resumeRef = useRef(null);
+    const { resumeData, setResumeData } = useResume();
+
+    const [editMode, setEditMode] = useState(false);
+    const [localData, setLocalData] = useState(buildEditingState(resumeData));
+
+    const resumeBodyStyle = useResumeBodyStyle();
+
+    useEffect(() => {
+        setLocalData(buildEditingState(resumeData));
+    }, [resumeData]);
+
+    const handleFieldChange = (field, value) => {
+        setLocalData((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
+
+    const handleArrayFieldChange = (section, index, key, value) => {
+        setLocalData((prev) => {
+            const arr = safeArray(prev[section]);
+            const updated = arr.map((item, i) =>
+                i === index
+                    ? {
+                        ...item,
+                        [key]: value,
+                    }
+                    : item
+            );
+            return { ...prev, [section]: updated };
+        });
+    };
+
+    const handleSimpleListChange = (section, index, value) => {
+        setLocalData((prev) => {
+            const arr = safeArray(prev[section]);
+            const updated = arr.map((item, i) => (i === index ? value : item));
+            return { ...prev, [section]: updated };
+        });
+    };
+
+    const handleAddRow = (section) => {
+        setLocalData((prev) => {
+            const arr = safeArray(prev[section]);
+            let newItem;
+            if (section === "experience") {
+                newItem = JSON.parse(JSON.stringify(EMPTY_EXPERIENCE));
+            } else if (section === "education") {
+                newItem = JSON.parse(JSON.stringify(EMPTY_EDUCATION));
+            } else if (section === "projects") {
+                newItem = JSON.parse(JSON.stringify(EMPTY_PROJECT));
+            } else if (section === "certifications") {
+                newItem = JSON.parse(JSON.stringify(EMPTY_CERTIFICATION));
+            } else {
+                newItem = "";
+            }
+            return { ...prev, [section]: [...arr, newItem] };
+        });
+    };
+
+    const handleRemoveRow = (section, index) => {
+        setLocalData((prev) => {
+            const arr = safeArray(prev[section]);
+            const updated = arr.filter((_, i) => i !== index);
+
+            // Always keep at least one blank row in edit mode
+            if (updated.length === 0) {
+                if (section === "experience") {
+                    return {
+                        ...prev,
+                        experience: [JSON.parse(JSON.stringify(EMPTY_EXPERIENCE))],
+                    };
+                }
+                if (section === "education") {
+                    return {
+                        ...prev,
+                        education: [JSON.parse(JSON.stringify(EMPTY_EDUCATION))],
+                    };
+                }
+                if (section === "projects") {
+                    return {
+                        ...prev,
+                        projects: [JSON.parse(JSON.stringify(EMPTY_PROJECT))],
+                    };
+                }
+                if (section === "certifications") {
+                    return {
+                        ...prev,
+                        certifications: [JSON.parse(JSON.stringify(EMPTY_CERTIFICATION))],
+                    };
+                }
+                return { ...prev, [section]: [""] };
+            }
+
+            return { ...prev, [section]: updated };
+        });
+    };
+
+    const handleClearSection = (section) => {
+        setLocalData((prev) => {
+            if (section === "experience") {
+                return {
+                    ...prev,
+                    experience: [JSON.parse(JSON.stringify(EMPTY_EXPERIENCE))],
+                };
+            }
+            if (section === "education") {
+                return {
+                    ...prev,
+                    education: [JSON.parse(JSON.stringify(EMPTY_EDUCATION))],
+                };
+            }
+            if (section === "projects") {
+                return {
+                    ...prev,
+                    projects: [JSON.parse(JSON.stringify(EMPTY_PROJECT))],
+                };
+            }
+            if (section === "certifications") {
+                return {
+                    ...prev,
+                    certifications: [JSON.parse(JSON.stringify(EMPTY_CERTIFICATION))],
+                };
+            }
+            return { ...prev, [section]: [""] };
+        });
+    };
+
+    const handleSave = () => {
+        const cleaned = normalizeData(localData);
+        setResumeData(cleaned);
+        setEditMode(false);
+    };
+
+    const handleCancel = () => {
+        setLocalData(buildEditingState(resumeData));
+        setEditMode(false);
+    };
+
+    const sectionTitleStyle = {
+        fontWeight: 700,
+        fontSize: "1.1rem",
+        color: "#4f46e5",
+        textTransform: "uppercase",
+        marginBottom: "0.5rem",
+    };
+
+    const sectionDivider = {
+        border: "none",
+        borderTop: "1px solid #e5e7eb",
+        marginBottom: "1rem",
+    };
+
+    // View data (normalized)
+    const viewData = normalizeData(resumeData);
+
+    const showSummary = hasText(viewData.summary);
+    const showExperience = safeArray(viewData.experience).some(
+        hasExperienceContent
+    );
+    const showEducation = safeArray(viewData.education).some(
+        hasEducationContent
+    );
+    const showProjects = safeArray(viewData.projects).some(hasProjectContent);
+    const showCertifications = safeArray(viewData.certifications).some(
+        hasCertificationContent
+    );
+    const showSkills = safeArray(viewData.skills).some(hasText);
+    const showAchievements = safeArray(viewData.achievements).some(hasText);
+    const showLanguages = safeArray(viewData.languages).some(hasText);
+    const showInterests = safeArray(viewData.interests).some(hasText);
+
+    return (
+        <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
+            <Navbar />
+            <div style={{ display: "flex" }}>
+                <Sidebar onEnhance={() => { }} resumeRef={resumeRef} />
+                <div
+                    style={{
+                        flexGrow: 1,
+                        padding: "2.5rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                    }}
+                >
+                    <div
+                        ref={resumeRef}
+                        style={{
+                            backgroundColor: "#fdfcfb",
+                            color: "#111827",
+                            width: "210mm",
+                            minHeight: "297mm",
+                            padding: "2rem",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "0.75rem",
+                            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+                            fontFamily: "Arial, sans-serif",
+                            boxSizing: "border-box",
+                            ...resumeBodyStyle,
+                        }}
+                    >
+                        {/* ===== HEADER (cornered layout) ===== */}
+                        <div style={{ marginBottom: "1.8rem" }}>
+                            {/* Name + Role */}
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <div>
+                                    {editMode ? (
+                                        <>
+                                            <input
+                                                value={localData.name}
+                                                onChange={(e) =>
+                                                    handleFieldChange("name", e.target.value)
+                                                }
+                                                placeholder="Your Name"
+                                                style={{
+                                                    fontSize: "3.2rem",
+                                                    fontWeight: 700,
+                                                    border: "none",
+                                                    outline: "none",
+                                                    background: "transparent",
+                                                    color: "#4B5563",
+                                                }}
+                                            />
+                                            <input
+                                                value={localData.role}
+                                                onChange={(e) =>
+                                                    handleFieldChange("role", e.target.value)
+                                                }
+                                                placeholder="Your Role"
+                                                style={{
+                                                    fontSize: "1.3rem",
+                                                    border: "none",
+                                                    outline: "none",
+                                                    background: "transparent",
+                                                    color: "#3b82f6",
+                                                    display: "block",
+                                                    marginTop: "0.25rem",
+                                                }}
+                                            />
+                                        </>
+                                    ) : (
+                                        <>
+                                            {hasText(viewData.name) && (
+                                                <div
+                                                    style={{
+                                                        fontSize: "3.2rem",
+                                                        fontWeight: 700,
+                                                        color: "#4B5563",
+                                                    }}
+                                                >
+                                                    {viewData.name}
+                                                </div>
+                                            )}
+                                            {hasText(viewData.role) && (
+                                                <div
+                                                    style={{
+                                                        fontSize: "1.3rem",
+                                                        color: "#3b82f6",
+                                                    }}
+                                                >
+                                                    {viewData.role}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Contact Row */}
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "1fr 1fr 1fr",
+                                    rowGap: "0.5rem",
+                                    columnGap: "2rem",
+                                    marginTop: "1rem",
+                                }}
+                            >
+                                {/* LEFT COLUMN */}
+                                <div>
+                                    {editMode ? (
+                                        <>
+                                            <input
+                                                value={localData.location}
+                                                onChange={(e) => handleFieldChange("location", e.target.value)}
+                                                placeholder="Location"
+                                                style={contactInputStyle}
+                                            />
+                                            <input
+                                                value={localData.email}
+                                                onChange={(e) => handleFieldChange("email", e.target.value)}
+                                                placeholder="Email"
+                                                style={contactInputStyle}
+                                            />
+                                        </>
+                                    ) : (
+                                        <>
+                                            {hasText(viewData.location) && (
+                                                <div style={contactRowItemStyle}>
+                                                    <MapPin size={14} style={{ marginRight: "4px" }} />
+                                                    <span>{viewData.location}</span>
+                                                </div>
+                                            )}
+                                            {hasText(viewData.email) && (
+                                                <div style={contactRowItemStyle}>
+                                                    <Mail size={14} style={{ marginRight: "4px" }} />
+                                                    <span>{viewData.email}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+
+                                {/* CENTER COLUMN */}
+                                <div>
+                                    {editMode ? (
+                                        <>
+                                            <input
+                                                value={localData.phone}
+                                                onChange={(e) => handleFieldChange("phone", e.target.value)}
+                                                placeholder="Phone"
+                                                style={contactInputStyle}
+                                            />
+                                            <input
+                                                value={localData.linkedin}
+                                                onChange={(e) => handleFieldChange("linkedin", e.target.value)}
+                                                placeholder="LinkedIn"
+                                                style={contactInputStyle}
+                                            />
+                                        </>
+                                    ) : (
+                                        <>
+                                            {hasText(viewData.phone) && (
+                                                <div style={contactRowItemStyle}>
+                                                    <Phone size={14} style={{ marginRight: "4px" }} />
+                                                    <span>{viewData.phone}</span>
+                                                </div>
+                                            )}
+                                            {hasText(viewData.linkedin) && (
+                                                <div style={contactRowItemStyle}>
+                                                    <Linkedin size={14} style={{ marginRight: "4px" }} />
+                                                    <span>{viewData.linkedin}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+
+                                {/* RIGHT COLUMN */}
+                                <div>
+                                    {editMode ? (
+                                        <>
+                                            <input
+                                                value={localData.github}
+                                                onChange={(e) => handleFieldChange("github", e.target.value)}
+                                                placeholder="GitHub"
+                                                style={contactInputStyle}
+                                            />
+                                            <input
+                                                value={localData.portfolio}
+                                                onChange={(e) => handleFieldChange("portfolio", e.target.value)}
+                                                placeholder="Portfolio"
+                                                style={contactInputStyle}
+                                            />
+                                        </>
+                                    ) : (
+                                        <>
+                                            {hasText(viewData.github) && (
+                                                <div style={contactRowItemStyle}>
+                                                    <Github size={14} style={{ marginRight: "4px" }} />
+                                                    <span>{viewData.github}</span>
+                                                </div>
+                                            )}
+                                            {hasText(viewData.portfolio) && (
+                                                <div style={contactRowItemStyle}>
+                                                    <Globe size={14} style={{ marginRight: "4px" }} />
+                                                    <span>{viewData.portfolio}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+                            </div>
+                        </div>
+
+                        {/* SUMMARY */}
+                        {(editMode || showSummary) && (
+                            <div style={{ marginBottom: "1.5rem" }}>
+                                <h3
+                                    style={{
+                                        ...sectionTitleStyle,
+                                        fontSize: "1.7rem",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Summary
+                                </h3>
+                                <hr style={sectionDivider} />
+                                {editMode ? (
+                                    <textarea
+                                        value={localData.summary}
+                                        onChange={(e) =>
+                                            handleFieldChange("summary", e.target.value)
+                                        }
+                                        placeholder="Write a short professional summary..."
+                                        style={{ width: "100%", minHeight: "4rem" }}
+                                    />
+                                ) : (
+                                    <p>{viewData.summary}</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* EXPERIENCE */}
+                        {(editMode || showExperience) && (
+                            <div style={{ marginBottom: "1.5rem" }}>
+                                <h3
+                                    style={{
+                                        ...sectionTitleStyle,
+                                        fontSize: "1.7rem",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Experience
+                                </h3>
+                                <hr style={sectionDivider} />
+
+                                {editMode
+                                    ? safeArray(localData.experience).map((exp, idx) => (
+                                        <div
+                                            key={idx}
+                                            style={{
+                                                marginBottom: "1rem",
+                                                borderBottom: "1px dashed #e5e7eb",
+                                                paddingBottom: "0.75rem",
+                                            }}
+                                        >
+                                            <input
+                                                type="text"
+                                                value={exp.title}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "experience",
+                                                        idx,
+                                                        "title",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Job Title"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={exp.companyName}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "experience",
+                                                        idx,
+                                                        "companyName",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Company"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={exp.date}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "experience",
+                                                        idx,
+                                                        "date",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="YYYY - YYYY"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={exp.companyLocation}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "experience",
+                                                        idx,
+                                                        "companyLocation",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="City, Country"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <textarea
+                                                value={safeArray(exp.accomplishment).join("\n")}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "experience",
+                                                        idx,
+                                                        "accomplishment",
+                                                        e.target.value.split("\n")
+                                                    )
+                                                }
+                                                placeholder="Describe your work (one bullet per line)"
+                                                style={{
+                                                    width: "100%",
+                                                    minHeight: "3rem",
+                                                    marginTop: "0.25rem",
+                                                }}
+                                            />
+                                            <div style={{ marginTop: "0.5rem" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleRemoveRow("experience", idx)
+                                                    }
+                                                    style={{
+                                                        fontSize: "0.8rem",
+                                                        padding: "0.25rem 0.5rem",
+                                                        borderRadius: "0.25rem",
+                                                        border: "1px solid #ef4444",
+                                                        color: "#ef4444",
+                                                        background: "white",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Remove Experience
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                    : safeArray(viewData.experience)
+                                        .filter(hasExperienceContent)
+                                        .map((exp, idx) => (
+                                            <div key={idx} style={{ marginBottom: "1rem" }}>
+                                                <p style={{ margin: 0 }}>
+                                                    {hasText(exp.title) && <strong>{exp.title}</strong>}
+                                                    {hasText(exp.companyName) && (
+                                                        <> — {exp.companyName}</>
+                                                    )}
+                                                    {hasText(exp.date) && <> ({exp.date})</>}
+                                                    {hasText(exp.companyLocation) && (
+                                                        <>
+                                                            <br />
+                                                            <em>{exp.companyLocation}</em>
+                                                        </>
+                                                    )}
+                                                </p>
+                                                {hasNonEmptyStringArray(exp.accomplishment) && (
+                                                    <ul
+                                                        style={{
+                                                            paddingLeft: "1.25rem",
+                                                            lineHeight: "1.6",
+                                                            marginTop: "0.25rem",
+                                                        }}
+                                                    >
+                                                        {safeArray(exp.accomplishment)
+                                                            .filter(hasText)
+                                                            .map((a, i) => (
+                                                                <li key={i}>{a}</li>
+                                                            ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                {editMode && (
+                                    <div style={{ marginTop: "0.5rem" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAddRow("experience")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #3b82f6",
+                                                color: "#3b82f6",
+                                                background: "white",
+                                                marginRight: "0.5rem",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            + Add Experience
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleClearSection("experience")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #6b7280",
+                                                color: "#6b7280",
+                                                background: "white",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Remove Experience Section
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* EDUCATION */}
+                        {(editMode || showEducation) && (
+                            <div style={{ marginBottom: "1.5rem" }}>
+                                <h3
+                                    style={{
+                                        ...sectionTitleStyle,
+                                        fontSize: "1.7rem",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Education
+                                </h3>
+                                <hr style={sectionDivider} />
+
+                                {editMode
+                                    ? safeArray(localData.education).map((edu, idx) => (
+                                        <div
+                                            key={idx}
+                                            style={{
+                                                marginBottom: "1rem",
+                                                borderBottom: "1px dashed #e5e7eb",
+                                                paddingBottom: "0.75rem",
+                                            }}
+                                        >
+                                            <input
+                                                type="text"
+                                                value={edu.degree}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "education",
+                                                        idx,
+                                                        "degree",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Degree"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={edu.institution}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "education",
+                                                        idx,
+                                                        "institution",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Institution"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={edu.duration}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "education",
+                                                        idx,
+                                                        "duration",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="YYYY - YYYY"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={edu.location}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "education",
+                                                        idx,
+                                                        "location",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="City, Country"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <div style={{ marginTop: "0.5rem" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleRemoveRow("education", idx)
+                                                    }
+                                                    style={{
+                                                        fontSize: "0.8rem",
+                                                        padding: "0.25rem 0.5rem",
+                                                        borderRadius: "0.25rem",
+                                                        border: "1px solid #ef4444",
+                                                        color: "#ef4444",
+                                                        background: "white",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Remove Education
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                    : safeArray(viewData.education)
+                                        .filter(hasEducationContent)
+                                        .map((edu, idx) => (
+                                            <p key={idx}>
+                                                {hasText(edu.degree) && (
+                                                    <strong>{edu.degree}</strong>
+                                                )}
+                                                {hasText(edu.institution) && (
+                                                    <> — {edu.institution}</>
+                                                )}
+                                                {hasText(edu.duration) && <> ({edu.duration})</>}
+                                                {hasText(edu.location) && <> — {edu.location}</>}
+                                            </p>
+                                        ))}
+
+                                {editMode && (
+                                    <div style={{ marginTop: "0.5rem" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAddRow("education")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #3b82f6",
+                                                color: "#3b82f6",
+                                                background: "white",
+                                                marginRight: "0.5rem",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            + Add Education
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleClearSection("education")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #6b7280",
+                                                color: "#6b7280",
+                                                background: "white",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Remove Education Section
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* PROJECTS */}
+                        {(editMode || showProjects) && (
+                            <div style={{ marginBottom: "1.5rem" }}>
+                                <h3
+                                    style={{
+                                        ...sectionTitleStyle,
+                                        fontSize: "1.7rem",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Projects
+                                </h3>
+                                <hr style={sectionDivider} />
+
+                                {editMode
+                                    ? safeArray(localData.projects).map((project, idx) => (
+                                        <div
+                                            key={idx}
+                                            style={{
+                                                marginBottom: "1rem",
+                                                borderBottom: "1px dashed #e5e7eb",
+                                                paddingBottom: "0.75rem",
+                                            }}
+                                        >
+                                            <input
+                                                type="text"
+                                                value={project.name}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "projects",
+                                                        idx,
+                                                        "name",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Project Name"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <textarea
+                                                value={project.description}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "projects",
+                                                        idx,
+                                                        "description",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Short project description."
+                                                style={{
+                                                    width: "100%",
+                                                    minHeight: "3rem",
+                                                    marginBottom: "0.25rem",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={safeArray(project.technologies).join(", ")}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "projects",
+                                                        idx,
+                                                        "technologies",
+                                                        e.target.value
+                                                            .split(",")
+                                                            .map((t) => t.trim())
+                                                            .filter(Boolean)
+                                                    )
+                                                }
+                                                placeholder="Technologies (comma separated)"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={project.link}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "projects",
+                                                        idx,
+                                                        "link",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Live link (optional)"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={project.github}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "projects",
+                                                        idx,
+                                                        "github",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="GitHub link (optional)"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <div style={{ marginTop: "0.5rem" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveRow("projects", idx)}
+                                                    style={{
+                                                        fontSize: "0.8rem",
+                                                        padding: "0.25rem 0.5rem",
+                                                        borderRadius: "0.25rem",
+                                                        border: "1px solid #ef4444",
+                                                        color: "#ef4444",
+                                                        background: "white",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Remove Project
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                    : safeArray(viewData.projects)
+                                        .filter(hasProjectContent)
+                                        .map((project, idx) => (
+                                            <div key={idx} style={{ marginBottom: "1rem" }}>
+                                                {hasText(project.name) && (
+                                                    <p
+                                                        style={{
+                                                            margin: 0,
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        {project.name}
+                                                    </p>
+                                                )}
+                                                {hasText(project.description) && (
+                                                    <p style={{ margin: "0.1rem 0" }}>
+                                                        {project.description}
+                                                    </p>
+                                                )}
+                                                {safeArray(project.technologies).length > 0 && (
+                                                    <p
+                                                        style={{
+                                                            margin: "0.1rem 0",
+                                                            fontSize: "0.9rem",
+                                                        }}
+                                                    >
+                                                        <strong>Tech:</strong>{" "}
+                                                        {safeArray(project.technologies).join(", ")}
+                                                    </p>
+                                                )}
+                                                {(hasText(project.link) || hasText(project.github)) && (
+                                                    <p
+                                                        style={{
+                                                            margin: "0.1rem 0",
+                                                            fontSize: "0.9rem",
+                                                        }}
+                                                    >
+                                                        {hasText(project.link) && (
+                                                            <>
+                                                                <a
+                                                                    href={project.link}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    style={{ color: "#2563eb" }}
+                                                                >
+                                                                    Live
+                                                                </a>
+                                                                {hasText(project.github) ? " · " : ""}
+                                                            </>
+                                                        )}
+                                                        {hasText(project.github) && (
+                                                            <a
+                                                                href={project.github}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                style={{ color: "#2563eb" }}
+                                                            >
+                                                                GitHub
+                                                            </a>
+                                                        )}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                {editMode && (
+                                    <div style={{ marginTop: "0.5rem" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAddRow("projects")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #3b82f6",
+                                                color: "#3b82f6",
+                                                background: "white",
+                                                marginRight: "0.5rem",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            + Add Project
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleClearSection("projects")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #6b7280",
+                                                color: "#6b7280",
+                                                background: "white",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Remove Projects Section
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* CERTIFICATIONS */}
+                        {(editMode || showCertifications) && (
+                            <div style={{ marginBottom: "1.5rem" }}>
+                                <h3
+                                    style={{
+                                        ...sectionTitleStyle,
+                                        fontSize: "1.7rem",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    Certifications
+                                </h3>
+                                <hr style={sectionDivider} />
+
+                                {editMode
+                                    ? safeArray(localData.certifications).map((cert, idx) => (
+                                        <div
+                                            key={idx}
+                                            style={{
+                                                marginBottom: "1rem",
+                                                borderBottom: "1px dashed #e5e7eb",
+                                                paddingBottom: "0.75rem",
+                                            }}
+                                        >
+                                            <input
+                                                type="text"
+                                                value={cert.title}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "certifications",
+                                                        idx,
+                                                        "title",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Certification Title"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={cert.issuer}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "certifications",
+                                                        idx,
+                                                        "issuer",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Issuer"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={cert.date}
+                                                onChange={(e) =>
+                                                    handleArrayFieldChange(
+                                                        "certifications",
+                                                        idx,
+                                                        "date",
+                                                        e.target.value
+                                                    )
+                                                }
+                                                placeholder="Date"
+                                                style={{
+                                                    display: "block",
+                                                    width: "100%",
+                                                    marginBottom: "0.25rem",
+                                                    border: "none",
+                                                    borderBottom: "1px solid #d1d5db",
+                                                    background: "transparent",
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            <div style={{ marginTop: "0.5rem" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleRemoveRow("certifications", idx)
+                                                    }
+                                                    style={{
+                                                        fontSize: "0.8rem",
+                                                        padding: "0.25rem 0.5rem",
+                                                        borderRadius: "0.25rem",
+                                                        border: "1px solid #ef4444",
+                                                        color: "#ef4444",
+                                                        background: "white",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Remove Certification
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                    : safeArray(viewData.certifications)
+                                        .filter(hasCertificationContent)
+                                        .map((cert, idx) => (
+                                            <p key={idx}>
+                                                {hasText(cert.title) && (
+                                                    <strong>{cert.title}</strong>
+                                                )}
+                                                {hasText(cert.issuer) && <> — {cert.issuer}</>}
+                                                {hasText(cert.date) && <> ({cert.date})</>}
+                                            </p>
+                                        ))}
+
+                                {editMode && (
+                                    <div style={{ marginTop: "0.5rem" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAddRow("certifications")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #3b82f6",
+                                                color: "#3b82f6",
+                                                background: "white",
+                                                marginRight: "0.5rem",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            + Add Certification
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleClearSection("certifications")}
+                                            style={{
+                                                fontSize: "0.85rem",
+                                                padding: "0.35rem 0.75rem",
+                                                borderRadius: "0.375rem",
+                                                border: "1px solid #6b7280",
+                                                color: "#6b7280",
+                                                background: "white",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Remove Certifications Section
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* SKILLS / ACHIEVEMENTS / LANGUAGES / INTERESTS */}
+                        {["skills", "achievements", "languages", "interests"].map(
+                            (section) => {
+                                const label =
+                                    section.charAt(0).toUpperCase() + section.slice(1);
+                                const showSection =
+                                    section === "skills"
+                                        ? showSkills
+                                        : section === "achievements"
+                                            ? showAchievements
+                                            : section === "languages"
+                                                ? showLanguages
+                                                : showInterests;
+
+                                const viewList = viewData[section] || [];
+                                const editList = localData[section] || [];
+
+                                if (!editMode && !showSection) return null;
+
+                                return (
+                                    <div key={section} style={{ marginBottom: "1.5rem" }}>
+                                        <h3
+                                            style={{
+                                                ...sectionTitleStyle,
+                                                fontSize: "1.7rem",
+                                                fontWeight: 700,
+                                            }}
+                                        >
+                                            {label}
+                                        </h3>
+                                        <hr style={sectionDivider} />
+
+                                        {editMode ? (
+                                            <>
+                                                {safeArray(editList).map((item, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            marginBottom: "0.5rem",
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="text"
+                                                            value={item}
+                                                            onChange={(e) =>
+                                                                handleSimpleListChange(
+                                                                    section,
+                                                                    idx,
+                                                                    e.target.value
+                                                                )
+                                                            }
+                                                            placeholder={`New ${label.slice(0, -1)}`}
+                                                            style={{
+                                                                flexGrow: 1,
+                                                                border: "none",
+                                                                borderBottom: "1px solid #d1d5db",
+                                                                background: "transparent",
+                                                                outline: "none",
+                                                            }}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveRow(section, idx)}
+                                                            style={{
+                                                                marginLeft: "0.5rem",
+                                                                fontSize: "0.75rem",
+                                                                padding: "0.25rem 0.5rem",
+                                                                borderRadius: "0.25rem",
+                                                                border: "1px solid #ef4444",
+                                                                color: "#ef4444",
+                                                                background: "white",
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            X
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <div style={{ marginTop: "0.5rem" }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAddRow(section)}
+                                                        style={{
+                                                            fontSize: "0.85rem",
+                                                            padding: "0.35rem 0.75rem",
+                                                            borderRadius: "0.375rem",
+                                                            border: "1px solid #3b82f6",
+                                                            color: "#3b82f6",
+                                                            background: "white",
+                                                            marginRight: "0.5rem",
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        + Add {label.slice(0, -1)}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleClearSection(section)}
+                                                        style={{
+                                                            fontSize: "0.85rem",
+                                                            padding: "0.35rem 0.75rem",
+                                                            borderRadius: "0.375rem",
+                                                            border: "1px solid #6b7280",
+                                                            color: "#6b7280",
+                                                            background: "white",
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        Remove {label} Section
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <ul
+                                                style={{
+                                                    paddingLeft: "1.25rem",
+                                                    lineHeight: "1.6",
+                                                    margin: 0,
+                                                }}
+                                            >
+                                                {safeArray(viewList)
+                                                    .filter(hasText)
+                                                    .map((item, i) => (
+                                                        <li key={i}>{item}</li>
+                                                    ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                );
+                            }
+                        )}
+                    </div>
+
+                    {/* Edit / Save controls */}
+                    <div style={{ marginTop: "1rem", textAlign: "center" }}>
+                        {editMode ? (
+                            <>
+                                <button
+                                    onClick={handleSave}
+                                    style={{
+                                        backgroundColor: "#10b981",
+                                        color: "white",
+                                        padding: "0.5rem 1rem",
+                                        borderRadius: "0.375rem",
+                                        marginRight: "0.5rem",
+                                        border: "none",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Save
+                                </button>
+                                <button
+                                    onClick={handleCancel}
+                                    style={{
+                                        backgroundColor: "#6b7280",
+                                        color: "white",
+                                        padding: "0.5rem 1rem",
+                                        borderRadius: "0.375rem",
+                                        border: "none",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => setEditMode(true)}
+                                style={{
+                                    backgroundColor: "#3b82f6",
+                                    color: "white",
+                                    padding: "0.5rem 1rem",
+                                    borderRadius: "0.375rem",
+                                    border: "none",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Edit
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Template17;
