@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
-import useUndoRedo from "../../hooks/useUndoRedo";
+import { useUndoRedo } from "../../hooks/useUndoRedo";
 import { 
   FaEnvelope, FaPhone, FaLinkedin, FaGithub, FaGlobe, 
   FaPlus, FaTrash, FaSave, FaTimes, FaEdit,
   FaGraduationCap, FaBriefcase, FaAward, FaCertificate, FaLanguage, FaLightbulb,
-  FaCheckCircle, FaPlusCircle
+  FaCheckCircle, FaPlusCircle, FaUndo, FaRedo
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -15,88 +15,65 @@ const Template11 = () => {
   const resumeRef = useRef(null);
   const { resumeData, updateResumeData, sectionOrder } = useResume();
   const [editMode, setEditMode] = useState(false);
-  // const [localData, setLocalData] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [newSkill, setNewSkill] = useState("");
+  
+  // Default data structure
+  const defaultData = {
+    name: "Your Name",
+    role: "Your Job Title",
+    email: "email@example.com",
+    phone: "+1 234 567 8900",
+    linkedin: "linkedin.com/in/username",
+    github: "github.com/username",
+    portfolio: "portfolio.com",
+    summary: "Write a compelling professional summary highlighting your key strengths and career goals...",
+    experience: [
+      {
+        title: "Job Title",
+        companyName: "Company Name",
+        date: "2022 - Present",
+        accomplishment: ["Key accomplishment 1", "Key accomplishment 2"]
+      }
+    ],
+    education: [
+      {
+        degree: "Degree Name",
+        institution: "Institution Name",
+        duration: "2018 - 2022"
+      }
+    ],
+    skills: ["React", "Node.js", "JavaScript", "Python", "MongoDB"],
+    projects: [
+      {
+        name: "Project Name",
+        description: "Project description goes here"
+      }
+    ],
+    certifications: [
+      {
+        title: "Certification Name"
+      }
+    ],
+    achievements: ["Achievement 1", "Achievement 2"],
+    languages: ["English", "Spanish", "French"],
+    interests: ["Reading", "Traveling", "Photography"],
+    templateId: 11
+  };
 
-const {
-  state: localData,
-  setState: setLocalData,
-  undo,
-  redo,
-  canUndo,
-  canRedo,
-} = useUndoRedo(resumeData || {});
-
-const handleUndo = () => {
-  if (!canUndo) {
-    toast.info("Nothing to undo");
-    return;
-  }
-  undo();
-  toast.success("Undo applied");
-};
-
-const handleRedo = () => {
-  if (!canRedo) {
-    toast.info("Nothing to redo");
-    return;
-  }
-  redo();
-  toast.success("Redo applied");
-};
+  // UNDO/REDO HOOK
+  const { state: localData, setState: setLocalData, undo, redo, canUndo, canRedo } = useUndoRedo(
+    resumeData && Object.keys(resumeData).length > 0 
+      ? JSON.parse(JSON.stringify(resumeData))
+      : defaultData
+  );
 
   // 1. SYNC DATA FROM CONTEXT
   useEffect(() => {
     if (resumeData && Object.keys(resumeData).length > 0) {
       setLocalData(JSON.parse(JSON.stringify(resumeData)));
-    } else {
-      // Default data structure
-      const defaultData = {
-        name: "Your Name",
-        role: "Your Job Title",
-        email: "email@example.com",
-        phone: "+1 234 567 8900",
-        linkedin: "linkedin.com/in/username",
-        github: "github.com/username",
-        portfolio: "portfolio.com",
-        summary: "Write a compelling professional summary highlighting your key strengths and career goals...",
-        experience: [
-          {
-            title: "Job Title",
-            companyName: "Company Name",
-            date: "2022 - Present",
-            accomplishment: ["Key accomplishment 1", "Key accomplishment 2"]
-          }
-        ],
-        education: [
-          {
-            degree: "Degree Name",
-            institution: "Institution Name",
-            duration: "2018 - 2022"
-          }
-        ],
-        skills: ["React", "Node.js", "JavaScript", "Python", "MongoDB"],
-        projects: [
-          {
-            name: "Project Name",
-            description: "Project description goes here"
-          }
-        ],
-        certifications: [
-          {
-            title: "Certification Name"
-          }
-        ],
-        achievements: ["Achievement 1", "Achievement 2"],
-        languages: ["English", "Spanish", "French"],
-        interests: ["Reading", "Traveling", "Photography"],
-        templateId: 11
-      };
-      setLocalData(defaultData);
     }
-  }, [resumeData]);
-
+  }, [resumeData, setLocalData]);
   // 2. LISTEN FOR SIDEBAR FLOATING EDIT BUTTON
   useEffect(() => {
     const handleToggleEdit = (e) => {
@@ -108,7 +85,8 @@ const handleRedo = () => {
 
   // --- Handlers ---
   const handleFieldChange = (field, value) => {
-    setLocalData((prev) => ({ ...prev, [field]: value }));
+    const updatedData = { ...localData, [field]: value };
+    setLocalData(updatedData);
   };
 
   const handleArrayUpdate = (section, index, key, value) => {
@@ -118,21 +96,24 @@ const handleRedo = () => {
     } else {
       updated[index] = value;
     }
-    setLocalData((prev) => ({ ...prev, [section]: updated }));
+    const updatedData = { ...localData, [section]: updated };
+    setLocalData(updatedData);
   };
 
   const handleAddItem = (section, emptyItem) => {
-    setLocalData((prev) => ({
-      ...prev,
-      [section]: [...(prev[section] || []), emptyItem],
-    }));
+    const updatedData = {
+      ...localData,
+      [section]: [...(localData[section] || []), emptyItem],
+    };
+    setLocalData(updatedData);
     toast.info(`Added new ${section} item`);
   };
 
   const handleRemoveItem = (section, index) => {
     const updated = [...(localData[section] || [])];
     updated.splice(index, 1);
-    setLocalData((prev) => ({ ...prev, [section]: updated }));
+    const updatedData = { ...localData, [section]: updated };
+    setLocalData(updatedData);
     toast.warn(`Removed ${section} item`);
   };
 
@@ -691,7 +672,7 @@ const handleRedo = () => {
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar already has all the icons - preview, download, share */}
-        <Sidebar templateKey="template11" resumeRef={resumeRef} />
+        <Sidebar resumeRef={resumeRef} />
 
         <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto no-scrollbar pb-32">
           
@@ -806,8 +787,7 @@ const handleRedo = () => {
               ))}
             </main>
           </div>
-
-          {/* EDIT & SAVE BUTTONS */}
+{/* EDIT & SAVE BUTTONS */}
           <div data-html2canvas-ignore="true" className="fixed bottom-10 flex gap-4 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl border border-white z-50">
             {editMode ? (
               <>
@@ -818,31 +798,27 @@ const handleRedo = () => {
                 >
                   <FaSave /> {isSaving ? "Saving..." : "Save"}
                 </button>
-                {/* Undo / Redo */}
-<button
-  onClick={handleUndo}
-  disabled={!canUndo}
-  className={`px-4 py-2 rounded-lg font-semibold text-white ${
-    canUndo ? "bg-indigo-600 hover:bg-indigo-700" : "bg-indigo-300 cursor-not-allowed"
-  }`}
->
-  ↩ Undo
-</button>
-
-<button
-  onClick={handleRedo}
-  disabled={!canRedo}
-  className={`px-4 py-2 rounded-lg font-semibold text-white ${
-    canRedo ? "bg-cyan-600 hover:bg-cyan-700" : "bg-cyan-300 cursor-not-allowed"
-  }`}
->
-  Redo ↪
-</button>
                 <button 
                   onClick={handleCancel} 
                   className="bg-gray-100 text-gray-600 px-8 py-2 rounded-lg font-bold hover:bg-gray-200 flex items-center gap-2"
                 >
                   <FaTimes /> Cancel
+                </button>
+                <button 
+                  onClick={undo} 
+                  disabled={!canUndo}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Undo"
+                >
+                  <FaUndo />
+                </button>
+                <button 
+                  onClick={redo} 
+                  disabled={!canRedo}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Redo"
+                >
+                  <FaRedo />
                 </button>
               </>
             ) : (

@@ -3,6 +3,7 @@ import React, {
   useRef, 
   useEffect 
 } from "react";
+import useUndoRedo from "../../hooks/useUndoRedo";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
@@ -29,7 +30,6 @@ import {
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "react-toastify";
-import useUndoRedo from "../../hooks/useUndoRedo";
 
 const Template13 = () => {
   const resumeRef = useRef(null);
@@ -40,34 +40,14 @@ const Template13 = () => {
   } = useResume();
   
   const [editMode, setEditMode] = useState(false);
-  // const [localData, setLocalData] = useState(resumeData || {});
-
   const {
-  state: localData,
-  setState: setLocalData,
-  undo,
-  redo,
-  canUndo,
-  canRedo
-} = useUndoRedo(resumeData || {});
-
-const handleUndo = () => {
-  if (!canUndo) {
-    toast.info("Nothing to undo");
-    return;
-  }
-  undo();
-  toast.success("Undo applied");
-};
-
-const handleRedo = () => {
-  if (!canRedo) {
-    toast.info("Nothing to redo");
-    return;
-  }
-  redo();
-  toast.success("Redo applied");
-};
+    state: localData,
+    setState: setLocalData,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoRedo(resumeData || {});
 
   const [templateSettings, setTemplateSettings] = useState({
     fontFamily: "'Inter', sans-serif",
@@ -146,22 +126,22 @@ const handleRedo = () => {
     );
   };
 
-useEffect(() => {
-  if (resumeData) {
-    setLocalData(JSON.parse(JSON.stringify({
-      ...resumeData,
-      projects: resumeData?.projects || [],
-      certifications: resumeData?.certifications || [],
-      achievements: resumeData?.achievements || [],
-      courses: resumeData?.courses || [],
-      interests: resumeData?.interests || [],
-      skills: resumeData?.skills || [],
-      languages: resumeData?.languages || [],
-      experience: resumeData?.experience || [],
-      education: resumeData?.education || [],
-    })));
-  }
-}, [resumeData]);
+  useEffect(() => {
+    if (resumeData) {
+      setLocalData({
+        ...resumeData,
+        projects: resumeData.projects || [],
+        certifications: resumeData.certifications || [],
+        achievements: resumeData.achievements || [],
+        courses: resumeData.courses || [],
+        interests: resumeData.interests || [],
+        skills: resumeData.skills || [],
+        languages: resumeData.languages || [],
+        experience: resumeData.experience || [],
+        education: resumeData.education || [],
+      });
+    }
+  }, [resumeData]);
 
   const handleFieldChange = (field, value) => {
     setLocalData(prev => ({ 
@@ -664,12 +644,31 @@ useEffect(() => {
       <Navbar />
       <div className="flex">
         <Sidebar 
-          templateKey="template13"
           onDownload={handleDownload} 
           onSave={handleSave} 
           resumeRef={resumeRef} 
         />
-        <div className="flex-grow p-8 flex flex-col items-center pb-24">
+        
+          {/* Undo/Redo Buttons */}
+          <div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}} data-pdf-hide="true">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              style={{padding: "8px 16px", background: canUndo ? "#4f46e5" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canUndo ? "pointer" : "not-allowed"}}
+              title="Undo"
+            >
+              ↩ Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              style={{padding: "8px 16px", background: canRedo ? "#0891b2" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canRedo ? "pointer" : "not-allowed"}}
+              title="Redo"
+            >
+              Redo ↪
+            </button>
+          </div>
+<div className="flex-grow p-8 flex flex-col items-center pb-24">
           <div 
             ref={resumeRef} 
             style={{ 
@@ -756,7 +755,7 @@ useEffect(() => {
                     className="bg-transparent border-b border-gray-600" 
                   />
                 ) : (
-                  <span>{localData.email}</span>
+                  <a href={`mailto:${localData.email}`} style={{color:"inherit"}} target="_blank" rel="noopener noreferrer">{localData.email}</a>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -792,7 +791,7 @@ useEffect(() => {
                     className="bg-transparent border-b border-gray-600" 
                   />
                 ) : (
-                  <a href={localData.linkedin} className="hover:underline">
+                  <a href={(localData.linkedin && !/^https?:\/\//i.test(localData.linkedin)) ? `https://\${localData.linkedin} target="_blank" rel="noopener noreferrer"` : localData.linkedin} className="hover:underline">
                     LinkedIn Profile
                   </a>
                 )}
@@ -819,27 +818,6 @@ useEffect(() => {
                 >
                   Save Changes
                 </button>
-
-<button
-  onClick={handleUndo}
-  disabled={!canUndo}
-  className={`px-6 py-3 rounded-xl font-bold shadow-lg ${
-    canUndo ? "bg-yellow-500 hover:bg-yellow-600" : "bg-gray-300"
-  }`}
->
-  Undo
-</button>
-
-<button
-  onClick={handleRedo}
-  disabled={!canRedo}
-  className={`px-6 py-3 rounded-xl font-bold shadow-lg ${
-    canRedo ? "bg-purple-500 hover:bg-purple-600" : "bg-gray-300"
-  }`}
->
-  Redo
-</button>
-
                 <button 
                   onClick={handleCancel} 
                   className="bg-gray-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-gray-600 transition-all"

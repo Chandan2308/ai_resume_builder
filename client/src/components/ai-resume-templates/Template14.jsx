@@ -1,1059 +1,843 @@
-import { useResume } from "../../context/ResumeContext";
-import { useState, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import React, { 
+  useState, 
+  useRef, 
+  useEffect 
+} from "react";
+import useUndoRedo from "../../hooks/useUndoRedo";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
-import LoginPrompt from "../auth/LoginPrompt";
-import { useAuth } from "../../context/AuthContext";
+import { useResume } from "../../context/ResumeContext";
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Linkedin,
+  Github,
+  Briefcase,
+  GraduationCap,
+  User,
+  Award,
+  Globe,
+  Calendar,
+  Code,
+  BookOpen,
+  Heart,
+  Scroll,
+  Plus,
+  Trash2,
+  ExternalLink
+} from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { toast } from "react-toastify";
-import html2pdf from "html2pdf.js";
-import useUndoRedo from "../../hooks/useUndoRedo";
-import { getContactIcon, getSectionIcon, getSafeUrl } from "../../utils/ResumeConfig";
 
-const Template14 = () => {
-  const resumeContext = useResume();
-  const { isAuthenticated } = useAuth();
-  
-  // Destructure global state from context
-  const { resumeData, updateResumeData, sectionOrder } = resumeContext || { sectionOrder: [] };
-  
-  // const [localData, setLocalData] = useState({});
-  const [editMode, setEditMode] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  const {
-  state: localData,
-  setState: setLocalData,
-  undo,
-  redo,
-  canUndo,
-  canRedo
-} = useUndoRedo(resumeData || {});
+const Template13 = () => {
   const resumeRef = useRef(null);
-  const routerLocation = useLocation();
-  const [downloadRequested, setDownloadRequested] = useState(false);
+  const { 
+    resumeData, 
+    updateResumeData, 
+    sectionOrder 
+  } = useResume();
+  
+  const [editMode, setEditMode] = useState(false);
+  const {
+    state: localData,
+    setState: setLocalData,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoRedo(resumeData || {});
 
+  const [templateSettings, setTemplateSettings] = useState({
+    fontFamily: "'Inter', sans-serif",
+    primaryColor: "#1e40af",
+    secondaryColor: "#64748b",
+    accentColor: "#f59e0b",
+    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80",
+  });
 
-  const handleUndo = () => {
-  if (!canUndo) {
-    toast.info("Nothing to undo");
-    return;
-  }
-  undo();
-  toast.success("Undo applied");
-};
+  const [uploadedPhoto, setUploadedPhoto] = useState(null);
 
-const handleRedo = () => {
-  if (!canRedo) {
-    toast.info("Nothing to redo");
-    return;
-  }
-  redo();
-  toast.success("Redo applied");
-};
-  // Auth check
+  /**
+   * ChipInput Component
+   * Handles Skills, Languages, and Interests
+   */
+  const ChipInput = ({ 
+    chips = [], 
+    onChange, 
+    placeholder = "Add item" 
+  }) => {
+    const inputRef = useRef(null);
+    
+    useEffect(() => { 
+      if (!Array.isArray(chips)) { 
+        onChange([]); 
+      } 
+    }, []);
+
+    const addChip = (value) => {
+      const v = String(value || "").trim();
+      if (!v) return;
+      const exists = chips.some((c) => c.toLowerCase() === v.toLowerCase());
+      if (exists) return;
+      onChange([...chips, v]);
+    };
+
+    const removeChip = (index) => {
+      const newChips = [...chips];
+      newChips.splice(index, 1);
+      onChange(newChips);
+    };
+
+    return (
+      <div className="flex flex-wrap gap-2 items-center">
+        {chips.map((chip, idx) => (
+          <span 
+            key={idx} 
+            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center gap-2"
+          >
+            <span className="text-sm font-medium">{chip}</span>
+            <button 
+              type="button" 
+              onClick={() => removeChip(idx)} 
+              className="text-red-500 font-bold ml-1"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          className="p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400 min-w-[140px]"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              addChip(e.target.value);
+              e.target.value = "";
+            } else if (e.key === "Backspace" && !e.target.value && chips.length) {
+              removeChip(chips.length - 1);
+            }
+          }}
+        />
+      </div>
+    );
+  };
+
   useEffect(() => {
-    if (!isAuthenticated) setShowLoginPrompt(true);
-  }, [isAuthenticated]);
-
-  // Initialize local data from context
-  useEffect(() => {
-    if (resumeData && Object.keys(resumeData).length > 0) {
-      // Deep clone to avoid reference issues
-      setLocalData(JSON.parse(JSON.stringify(resumeData)));
-    } else {
-      // Default data structure
-      const defaultData = {
-        personalInfo: {
-          name: "Your Name",
-          role: "Your Job Title",
-          email: "email@example.com",
-          phone: "+1 234 567 8900",
-          linkedin: "linkedin.com/in/username",
-          github: "github.com/username",
-          portfolio: "portfolio.com",
-          location: "City, Country"
-        },
-        summary: "Write a compelling professional summary...",
-        experience: [
-          {
-            title: "Job Title",
-            company: "Company Name",
-            duration: "2022 - Present",
-            accomplishments: ["Key accomplishment 1", "Key accomplishment 2"]
-          }
-        ],
-        education: [
-          {
-            degree: "Degree Name",
-            institution: "Institution Name",
-            duration: "2018 - 2022",
-            gpa: "3.8/4.0"
-          }
-        ],
-        skills: ["Skill 1", "Skill 2", "Skill 3"],
-        projects: [
-          {
-            name: "Project Name",
-            description: "Project description",
-            technologies: ["Tech1", "Tech2"],
-            link: "project.link"
-          }
-        ],
-        certifications: [
-          {
-            name: "Certification Name",
-            organization: "Issuing Organization",
-            year: "2024"
-          }
-        ],
-        languages: [
-          { name: "Language", proficiency: 4 }
-        ],
-        achievements: ["Achievement 1", "Achievement 2"],
-        interests: ["Interest 1", "Interest 2"],
-        templateId: 14,
-        resumeMode: "fresher",
-        hiddenData: {},
-        textColor: "#ffffff", // For header text
-        bgColor: "#2563eb",   // For header background
-        font: "sans-serif"    // Font family
-      };
-      setLocalData(defaultData);
+    if (resumeData) {
+      setLocalData({
+        ...resumeData,
+        projects: resumeData.projects || [],
+        certifications: resumeData.certifications || [],
+        achievements: resumeData.achievements || [],
+        courses: resumeData.courses || [],
+        interests: resumeData.interests || [],
+        skills: resumeData.skills || [],
+        languages: resumeData.languages || [],
+        experience: resumeData.experience || [],
+        education: resumeData.education || [],
+      });
     }
   }, [resumeData]);
 
-  // Auto-download trigger
-  useEffect(() => {
-    if (routerLocation.state?.triggerDownload && resumeRef.current && !downloadRequested) {
-      setDownloadRequested(true);
-      setTimeout(() => {
-        handleDownload();
-      }, 800);
-    }
-  }, [routerLocation.state, resumeRef]);
-
-  // ---------- UTILITY FUNCTIONS ----------
-  const renderSafe = (val) => {
-    if (!val) return "";
-    if (typeof val === 'string') return val;
-    if (typeof val === 'number') return val.toString();
-    return val.name || val.title || val.degree || val.language || val || "";
-  };
-
-  // ---------- HANDLERS ----------
-  const handlePersonalInfoChange = (field, value) => {
-    setLocalData(prev => ({
-      ...prev,
-      personalInfo: {
-        ...(prev?.personalInfo || {}),
-        [field]: value
-      }
+  const handleFieldChange = (field, value) => {
+    setLocalData(prev => ({ 
+      ...prev, 
+      [field]: value 
     }));
   };
 
-  const handleInputChange = (field, value) => {
-    setLocalData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleObjectChange = (section, index, field, value) => {
-    setLocalData(prev => {
-      const updatedSection = [...(prev[section] || [])];
-      if (updatedSection[index]) {
-        if (typeof updatedSection[index] === 'string') {
-          updatedSection[index] = value;
-        } else {
-          updatedSection[index] = { ...updatedSection[index], [field]: value };
-        }
-      }
-      return { ...prev, [section]: updatedSection };
-    });
-  };
-
-  const handleSimpleArrayChange = (section, index, value) => {
-    setLocalData(prev => {
-      const updated = [...(prev[section] || [])];
-      updated[index] = value;
-      return { ...prev, [section]: updated };
-    });
-  };
-
-  const addItem = (section, newItem) => {
+  const handleNestedChange = (arrayKey, index, field, value) => {
     setLocalData(prev => ({
       ...prev,
-      [section]: [...(Array.isArray(prev[section]) ? prev[section] : []), newItem]
+      [arrayKey]: prev[arrayKey].map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ),
     }));
   };
 
-  const removeItem = (section, index) => {
-    setLocalData(prev => {
-      const updatedSection = (prev[section] || []).filter((_, i) => i !== index);
-      return { ...prev, [section]: updatedSection };
-    });
+  const handleAddItem = (section, template) => {
+    setLocalData(prev => ({
+      ...prev,
+      [section]: [...(prev[section] || []), template],
+    }));
   };
 
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      if (typeof updateResumeData !== 'function') {
-        throw new Error('Update function missing');
-      }
-      await updateResumeData(localData);
-      setEditMode(false);
-      toast.success('✅ Changes Saved Successfully');
-    } catch (error) {
-      console.error('Save error:', error);
-      toast.error('Failed to save changes');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleRemoveItem = (section, index) => {
+    setLocalData(prev => ({
+      ...prev,
+      [section]: prev[section].filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleSave = () => {
+    updateResumeData(localData);
+    setEditMode(false);
+    toast.success("Resume saved successfully!");
   };
 
   const handleCancel = () => {
-    setLocalData(resumeData ? JSON.parse(JSON.stringify(resumeData)) : {});
+    setLocalData(resumeData);
     setEditMode(false);
-    toast.info('Changes discarded');
   };
 
-  const handleDownload = () => {
+  const handlePhotoChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedPhoto(reader.result);
+        setTemplateSettings((prev) => ({ 
+          ...prev, 
+          photo: reader.result 
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDownload = async () => {
     const element = resumeRef.current;
-    if (!element) {
-      toast.error('Resume content not found');
-      return;
-    }
-
-    const options = {
-      margin: 0,
-      filename: `${localData.personalInfo?.name || 'Resume'}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { 
         scale: 2, 
-        useCORS: true, 
-        letterRendering: true,
-        ignoreElements: (element) => 
-          element.getAttribute('data-html2canvas-ignore') === 'true'
-      },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    };
-
-    toast.info('Generating PDF...');
-    html2pdf()
-      .set(options)
-      .from(element)
-      .save()
-      .then(() => toast.success('✅ Download complete!'))
-      .catch((err) => {
-        console.error(err);
-        toast.error('Download failed');
+        useCORS: true 
       });
-  };
-
-  // Check if section has content
-  const hasContent = (data, key) => {
-    if (editMode) return true;
-    const val = data?.[key];
-    if (!val) return false;
-    
-    if (Array.isArray(val)) {
-      if (val.length === 0) return false;
-      return val.some(item => {
-        if (!item) return false;
-        if (typeof item === 'string') return item.trim().length > 0;
-        return Object.values(item).some(v => 
-          v && typeof v === 'string' && v.trim().length > 0
-        );
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ 
+        orientation: "portrait", 
+        unit: "mm", 
+        format: "a4" 
       });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${localData.name || "Resume"}.pdf`);
+    } catch (error) { 
+      console.error("PDF Error", error); 
     }
-    if (typeof val === 'string') return val.trim().length > 0;
-    return true;
   };
 
-  // Edit mode styles
-  const editBoxStyle = editMode ? {
-    border: "1px dashed #3b82f6",
-    backgroundColor: "#eff6ff",
-    padding: "15px",
-    borderRadius: "8px",
-    marginBottom: "15px",
-    position: "relative"
-  } : { marginBottom: "20px" };
-
-  const inputStyle = {
-    width: "100%",
-    border: "1px solid #d1d5db",
-    padding: "8px 12px",
-    borderRadius: "6px",
-    marginBottom: "8px",
-    fontSize: "14px",
-    outline: "none",
-    transition: "border-color 0.2s"
-  };
-
-  const personalInfo = localData.personalInfo || {};
-  const {
-    name = "",
-    role = "",
-    email = "",
-    phone = "",
-    linkedin = "",
-    github = "",
-    portfolio = "",
-    location = ""
-  } = personalInfo;
-
-  // Section components (same structure as Template 1)
-  const sectionComponents = {
-    summary: hasContent(localData, "summary") && (
-      <div key="summary" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("summary", editMode ? "#000" : "#00796b", 18)}
-            Professional Summary
-          </h2>
-        </div>
-        {editMode ? (
-          <textarea
-            style={{ ...inputStyle, minHeight: "100px" }}
-            value={renderSafe(localData.summary)}
-            onChange={(e) => handleInputChange("summary", e.target.value)}
-            placeholder="Write a compelling professional summary..."
-          />
-        ) : (
-          <p className="text-gray-700 leading-relaxed">{renderSafe(localData.summary)}</p>
-        )}
+  const SectionHeading = ({ title, icon: Icon }) => (
+    <div className="flex items-center gap-3 mb-6 mt-4 first:mt-0">
+      <div className="w-1 h-8 bg-gradient-to-b from-blue-600 to-blue-800 rounded-full"></div>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="w-5 h-5 text-blue-600" />}
+        <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide">
+          {title}
+        </h2>
       </div>
-    ),
+    </div>
+  );
 
-    experience: hasContent(localData, "experience") && (
-      <div key="experience" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("experience", editMode ? "#000" : "#00796b", 18)}
-            Experience
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("experience", { title: "", company: "", duration: "", accomplishments: [] })}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        {(localData.experience || []).map((exp, i) => (
-          <div key={i} style={{ marginBottom: "1.5rem", position: "relative" }}>
+  const renderSection = (sectionKey) => {
+    switch (sectionKey) {
+      case "summary":
+        return (editMode || localData.summary) && (
+          <div key="summary" className="mb-8">
+            <SectionHeading title="Professional Summary" icon={User} />
             {editMode ? (
-              <div style={{ border: "1px solid #e5e7eb", padding: "15px", borderRadius: "8px", marginBottom: "10px" }}>
-                <input
-                  style={inputStyle}
-                  value={renderSafe(exp.title)}
-                  onChange={(e) => handleObjectChange("experience", i, "title", e.target.value)}
-                  placeholder="Job Title"
-                />
-                <input
-                  style={inputStyle}
-                  value={renderSafe(exp.company)}
-                  onChange={(e) => handleObjectChange("experience", i, "company", e.target.value)}
-                  placeholder="Company Name"
-                />
-                <input
-                  style={inputStyle}
-                  value={exp.duration || ""}
-                  onChange={(e) => handleObjectChange("experience", i, "duration", e.target.value)}
-                  placeholder="Duration (e.g., Jan 2022 - Present)"
-                />
-                <textarea
-                  style={{ ...inputStyle, minHeight: "80px" }}
-                  value={(exp.accomplishments || []).join("\n")}
-                  onChange={(e) => handleObjectChange(
-                    "experience",
-                    i,
-                    "accomplishments",
-                    e.target.value.split("\n").filter(line => line.trim())
-                  )}
-                  placeholder="Accomplishments (one per line)"
-                />
-                <button
-                  onClick={() => removeItem("experience", i)}
-                  style={{ color: "red", border: "none", background: "none", fontSize: "0.8rem", marginTop: "5px" }}
-                >
-                  Remove
-                </button>
-              </div>
+              <textarea 
+                value={localData.summary} 
+                onChange={(e) => handleFieldChange("summary", e.target.value)} 
+                className="w-full text-gray-700 leading-relaxed p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                rows={4} 
+              />
             ) : (
-              <>
-                <h3 className="text-lg font-semibold text-black">{exp.title || "Position Title"}</h3>
-                <p className="italic text-gray-700">
-                  {exp.company || "Company Name"}
-                  {exp.duration && <span className="text-gray-500"> — {exp.duration}</span>}
-                </p>
-                {exp.accomplishments && exp.accomplishments.length > 0 && (
-                  <ul className="list-disc list-inside text-gray-700 mt-2">
-                    {exp.accomplishments.map((a, idx) => (
-                      <li key={idx}>{a}</li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-
-    education: hasContent(localData, "education") && (
-      <div key="education" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("education", editMode ? "#000" : "#00796b", 18)}
-            Education
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("education", { degree: "", institution: "", duration: "", gpa: "" })}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        {(localData.education || []).map((edu, i) => (
-          <div key={i} style={{ marginBottom: "1rem", position: "relative" }}>
-            {editMode ? (
-              <div style={{ border: "1px solid #e5e7eb", padding: "15px", borderRadius: "8px", marginBottom: "10px" }}>
-                <input
-                  style={inputStyle}
-                  value={renderSafe(edu.degree)}
-                  onChange={(e) => handleObjectChange("education", i, "degree", e.target.value)}
-                  placeholder="Degree"
-                />
-                <input
-                  style={inputStyle}
-                  value={renderSafe(edu.institution)}
-                  onChange={(e) => handleObjectChange("education", i, "institution", e.target.value)}
-                  placeholder="Institution"
-                />
-                <input
-                  style={inputStyle}
-                  value={edu.duration || ""}
-                  onChange={(e) => handleObjectChange("education", i, "duration", e.target.value)}
-                  placeholder="Duration"
-                />
-                <input
-                  style={inputStyle}
-                  value={edu.gpa || ""}
-                  onChange={(e) => handleObjectChange("education", i, "gpa", e.target.value)}
-                  placeholder="GPA (Optional)"
-                />
-                <button
-                  onClick={() => removeItem("education", i)}
-                  style={{ color: "red", border: "none", background: "none", fontSize: "0.8rem", marginTop: "5px" }}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <>
-                <h3 className="text-lg font-semibold text-black">{edu.degree || "Degree"}</h3>
-                <p className="italic text-gray-700">
-                  {edu.institution || "Institution"}
-                  {edu.duration && <span className="text-gray-500"> — {edu.duration}</span>}
-                  {edu.gpa && <span className="text-gray-500"> | GPA: {edu.gpa}</span>}
-                </p>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-
-    projects: hasContent(localData, "projects") && (
-      <div key="projects" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("projects", editMode ? "#000" : "#00796b", 18)}
-            Projects
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("projects", { name: "", description: "", technologies: [], link: "" })}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        {(localData.projects || []).map((proj, i) => (
-          <div key={i} style={{ marginBottom: "1.2rem", position: "relative" }}>
-            {editMode ? (
-              <div style={{ border: "1px solid #e5e7eb", padding: "15px", borderRadius: "8px", marginBottom: "10px" }}>
-                <input
-                  style={inputStyle}
-                  value={renderSafe(proj.name)}
-                  onChange={(e) => handleObjectChange("projects", i, "name", e.target.value)}
-                  placeholder="Project Name"
-                />
-                <textarea
-                  style={{ ...inputStyle, minHeight: "60px" }}
-                  value={proj.description || ""}
-                  onChange={(e) => handleObjectChange("projects", i, "description", e.target.value)}
-                  placeholder="Project Description"
-                />
-                <input
-                  style={inputStyle}
-                  value={(proj.technologies || []).join(", ")}
-                  onChange={(e) => handleObjectChange(
-                    "projects",
-                    i,
-                    "technologies",
-                    e.target.value.split(",").map(tech => tech.trim())
-                  )}
-                  placeholder="Technologies (comma-separated)"
-                />
-                <input
-                  style={inputStyle}
-                  value={proj.link || ""}
-                  onChange={(e) => handleObjectChange("projects", i, "link", e.target.value)}
-                  placeholder="Project Link (Optional)"
-                />
-                <button
-                  onClick={() => removeItem("projects", i)}
-                  style={{ color: "red", border: "none", background: "none", fontSize: "0.8rem", marginTop: "5px" }}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <>
-                <h3 className="text-lg font-semibold text-black">
-                  {proj.name || "Project Name"}
-                  {proj.link && (
-                    <a
-                      href={getSafeUrl("portfolio", proj.link)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 text-sm ml-2 hover:underline"
-                    >
-                      🔗 Link
-                    </a>
-                  )}
-                </h3>
-                <p className="text-gray-700">{proj.description}</p>
-                {proj.technologies && proj.technologies.length > 0 && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Tech: {proj.technologies.join(", ")}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
-
-    skills: hasContent(localData, "skills") && (
-      <div key="skills" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("skills", editMode ? "#000" : "#00796b", 18)}
-            Skills
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("skills", "")}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {(localData.skills || []).map((skill, i) => (
-            <div key={i} style={{ display: "inline-block" }}>
-              {editMode ? (
-                <div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-                  <input
-                    style={{ ...inputStyle, width: "150px", marginBottom: 0 }}
-                    value={renderSafe(skill)}
-                    onChange={(e) => handleSimpleArrayChange("skills", i, e.target.value)}
-                    placeholder="Skill"
-                  />
-                  <button
-                    onClick={() => removeItem("skills", i)}
-                    style={{ color: "red", border: "none", background: "none", marginLeft: "5px" }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : (
-                <span className="inline-block px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium mr-2 mb-2">
-                  {renderSafe(skill)}
-                </span>
-              )}
-            </div>
-          ))}
-          {editMode && (localData.skills || []).length === 0 && (
-            <p className="text-gray-400 italic">Click + Add to add skills</p>
-          )}
-        </div>
-      </div>
-    ),
-
-    languages: hasContent(localData, "languages") && (
-      <div key="languages" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("languages", editMode ? "#000" : "#00796b", 18)}
-            Languages
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("languages", { name: "", proficiency: 4 })}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {(localData.languages || []).map((lang, i) => (
-            <div key={i}>
-              {editMode ? (
-                <div style={{ border: "1px solid #e5e7eb", padding: "10px", borderRadius: "8px", marginBottom: "8px", width: "200px" }}>
-                  <input
-                    style={{ ...inputStyle, marginBottom: "8px" }}
-                    value={lang.name || ""}
-                    onChange={(e) => handleObjectChange("languages", i, "name", e.target.value)}
-                    placeholder="Language"
-                  />
-                  <select
-                    value={lang.proficiency || 4}
-                    onChange={(e) => handleObjectChange("languages", i, "proficiency", parseInt(e.target.value))}
-                    style={inputStyle}
-                  >
-                    <option value={1}>Beginner</option>
-                    <option value={2}>Elementary</option>
-                    <option value={3}>Intermediate</option>
-                    <option value={4}>Advanced</option>
-                    <option value={5}>Fluent</option>
-                    <option value={6}>Native</option>
-                  </select>
-                  <button
-                    onClick={() => removeItem("languages", i)}
-                    style={{ color: "red", border: "none", background: "none", fontSize: "0.8rem", marginTop: "5px" }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-medium mr-2 mb-2">
-                  {lang.name || "Language"}
-                  {lang.proficiency && (
-                    <span className="text-xs ml-1 opacity-75">
-                      ({["Beg", "Elem", "Int", "Adv", "Flt", "Nat"][lang.proficiency - 1]})
-                    </span>
-                  )}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-
-    achievements: hasContent(localData, "achievements") && (
-      <div key="achievements" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("achievements", editMode ? "#000" : "#00796b", 18)}
-            Achievements
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("achievements", "")}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        {editMode ? (
-          <div>
-            {(localData.achievements || []).map((achievement, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-                <input
-                  style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-                  value={renderSafe(achievement)}
-                  onChange={(e) => handleSimpleArrayChange("achievements", i, e.target.value)}
-                  placeholder="Enter achievement"
-                />
-                <button
-                  onClick={() => removeItem("achievements", i)}
-                  style={{ color: "red", border: "none", background: "none", marginLeft: "8px" }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {(localData.achievements || []).length === 0 && (
-              <p className="text-gray-400 italic">Click + Add to add achievements</p>
-            )}
-          </div>
-        ) : (
-          <ul className="list-disc list-inside text-gray-700">
-            {(localData.achievements || []).map((achievement, i) => (
-              <li key={i} className="mb-1">{renderSafe(achievement)}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    ),
-
-    interests: hasContent(localData, "interests") && (
-      <div key="interests" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("interests", editMode ? "#000" : "#00796b", 18)}
-            Interests
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("interests", "")}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {(localData.interests || []).map((interest, i) => (
-            <div key={i}>
-              {editMode ? (
-                <div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-                  <input
-                    style={{ ...inputStyle, width: "150px", marginBottom: 0 }}
-                    value={renderSafe(interest)}
-                    onChange={(e) => handleSimpleArrayChange("interests", i, e.target.value)}
-                    placeholder="Interest"
-                  />
-                  <button
-                    onClick={() => removeItem("interests", i)}
-                    style={{ color: "red", border: "none", background: "none", marginLeft: "5px" }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : (
-                <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full font-medium mr-2 mb-2">
-                  {renderSafe(interest)}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-
-    certifications: hasContent(localData, "certifications") && (
-      <div key="certifications" style={editBoxStyle}>
-        <div className="flex justify-between items-center border-b border-gray-300 pb-1 mb-2">
-          <h2 className="text-xl font-bold flex items-center">
-            {getSectionIcon("certifications", editMode ? "#000" : "#00796b", 18)}
-            Certifications
-          </h2>
-          {editMode && (
-            <button
-              onClick={() => addItem("certifications", { name: "", organization: "", year: "" })}
-              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        {(localData.certifications || []).map((cert, i) => (
-          <div key={i} style={{ marginBottom: "0.8rem", position: "relative" }}>
-            {editMode ? (
-              <div style={{ border: "1px solid #e5e7eb", padding: "10px", borderRadius: "8px", marginBottom: "8px" }}>
-                <input
-                  style={inputStyle}
-                  value={cert.name || cert.title || ""}
-                  onChange={(e) => handleObjectChange("certifications", i, "name", e.target.value)}
-                  placeholder="Certification Name"
-                />
-                <input
-                  style={inputStyle}
-                  value={cert.organization || ""}
-                  onChange={(e) => handleObjectChange("certifications", i, "organization", e.target.value)}
-                  placeholder="Issuing Organization"
-                />
-                <input
-                  style={inputStyle}
-                  value={cert.year || ""}
-                  onChange={(e) => handleObjectChange("certifications", i, "year", e.target.value)}
-                  placeholder="Year"
-                />
-                <button
-                  onClick={() => removeItem("certifications", i)}
-                  style={{ color: "red", border: "none", background: "none", fontSize: "0.8rem", marginTop: "5px" }}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <p className="text-black font-medium">
-                • {cert.name || cert.title || "Certification"}
-                {cert.organization && <span className="text-gray-600 font-normal"> — {cert.organization}</span>}
-                {cert.year && <span className="text-gray-500 text-sm ml-2">({cert.year})</span>}
+              <p className="text-gray-700 leading-relaxed text-lg">
+                {localData.summary}
               </p>
             )}
           </div>
-        ))}
-      </div>
-    )
-  };
+        );
 
-  return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      <Navbar />
-      <div className="flex flex-1">
-        <Sidebar templateKey="template14" resumeRef={resumeRef} />
-
-        <div className="flex-1 p-6 flex justify-center items-start">
-          <div
-            ref={resumeRef}
-            className="bg-white text-gray-900 font-sans shadow-lg border border-gray-300 rounded-lg resume-paper"
-            style={{
-              width: "794px",
-              minHeight: "1123px",
-              padding: "40px",
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)",
-              fontFamily: localData.font || "sans-serif",
-              boxSizing: "border-box",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column"
-            }}
-            data-resume-template="template14"
-          >
-            {/* HEADER - Exact same UI as original Template14 */}
-            <div
-              className={`p-6 rounded-t-xl text-left ${
-                editMode ? "bg-transparent text-black" : "bg-blue-600 text-white"
-              }`}
-              style={editMode ? {} : { backgroundColor: localData.bgColor || "#2563eb" }}
-            >
-              {editMode ? (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => handlePersonalInfoChange("name", e.target.value)}
-                    className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Your Full Name"
-                  />
-                  <input
-                    type="text"
-                    value={role}
-                    onChange={(e) => handlePersonalInfoChange("role", e.target.value)}
-                    className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Your Job Title"
-                  />
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => handlePersonalInfoChange("email", e.target.value)}
-                      className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Email Address"
-                    />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => handlePersonalInfoChange("phone", e.target.value)}
-                      className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Phone Number"
-                    />
-                    <input
-                      type="text"
-                      value={linkedin}
-                      onChange={(e) => handlePersonalInfoChange("linkedin", e.target.value)}
-                      className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="LinkedIn Profile URL"
-                    />
-                    <input
-                      type="text"
-                      value={github}
-                      onChange={(e) => handlePersonalInfoChange("github", e.target.value)}
-                      className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="GitHub Profile URL"
-                    />
-                    <input
-                      type="text"
-                      value={portfolio}
-                      onChange={(e) => handlePersonalInfoChange("portfolio", e.target.value)}
-                      className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Portfolio Website URL"
-                    />
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => handlePersonalInfoChange("location", e.target.value)}
-                      className="w-full border border-gray-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Location (City, Country)"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <h1 className="text-4xl font-bold" style={{ color: localData.textColor || "#ffffff" }}>
-                    {name || "Your Name"}
-                  </h1>
-                  <p className="text-lg mt-1" style={{ color: localData.textColor || "#ffffff" }}>
-                    {role || "Your Job Title"}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-sm">
-                    {email && (
-                      <a 
-                        href={getSafeUrl("email", email)} 
-                        className="flex items-center hover:underline"
-                        style={{ color: localData.textColor || "#ffffff" }}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {getContactIcon("email", localData.textColor || "#ffffff", 14)}
-                        <span className="ml-1">{email}</span>
-                      </a>
-                    )}
-                    {phone && (
-                      <a 
-                        href={getSafeUrl("phone", phone)} 
-                        className="flex items-center hover:underline"
-                        style={{ color: localData.textColor || "#ffffff" }}
-                      >
-                        {getContactIcon("phone", localData.textColor || "#ffffff", 14)}
-                        <span className="ml-1">{phone}</span>
-                      </a>
-                    )}
-                    {linkedin && (
-                      <a 
-                        href={getSafeUrl("linkedin", linkedin)} 
-                        className="flex items-center hover:underline"
-                        style={{ color: localData.textColor || "#ffffff" }}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {getContactIcon("linkedin", localData.textColor || "#ffffff", 14)}
-                        <span className="ml-1">LinkedIn</span>
-                      </a>
-                    )}
-                    {github && (
-                      <a 
-                        href={getSafeUrl("github", github)} 
-                        className="flex items-center hover:underline"
-                        style={{ color: localData.textColor || "#ffffff" }}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {getContactIcon("github", localData.textColor || "#ffffff", 14)}
-                        <span className="ml-1">GitHub</span>
-                      </a>
-                    )}
-                    {portfolio && (
-                      <a 
-                        href={getSafeUrl("portfolio", portfolio)} 
-                        className="flex items-center hover:underline"
-                        style={{ color: localData.textColor || "#ffffff" }}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {getContactIcon("portfolio", localData.textColor || "#ffffff", 14)}
-                        <span className="ml-1">Portfolio</span>
-                      </a>
-                    )}
-                    {location && (
-                      <span className="flex items-center" style={{ color: localData.textColor || "#ffffff" }}>
-                        {getContactIcon("location", localData.textColor || "#ffffff", 14)}
-                        <span className="ml-1">{location}</span>
-                      </span>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* BODY - Dynamically render sections based on sectionOrder */}
-            <div className="p-8" style={{ flex: 1 }}>
-              {(sectionOrder && sectionOrder.length > 0 ? sectionOrder : [
-                "summary", "experience", "education", "projects", "skills", 
-                "languages", "achievements", "interests", "certifications"
-              ]).map(sectionKey => sectionComponents[sectionKey] || null)}
-            </div>
-
-            {/* ACTION BUTTONS - Same as Template 1 but styled for Template14 */}
-            <div className="text-center mt-4 mb-6" data-html2canvas-ignore="true">
-              {editMode ? (
-  <div className="flex justify-center gap-3 flex-wrap">
-
-    <button
-      onClick={handleSave}
-      disabled={isSaving}
-      className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition-colors"
-    >
-      {isSaving ? "Saving..." : "Save"}
-    </button>
-
-    <button
-      onClick={handleUndo}
-      disabled={!canUndo}
-      className={`px-6 py-2 rounded text-white ${
-        canUndo ? "bg-yellow-500 hover:bg-yellow-600" : "bg-gray-400"
-      }`}
-    >
-      Undo
-    </button>
-
-    <button
-      onClick={handleRedo}
-      disabled={!canRedo}
-      className={`px-6 py-2 rounded text-white ${
-        canRedo ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-400"
-      }`}
-    >
-      Redo
-    </button>
-
-    <button
-      onClick={handleCancel}
-      disabled={isSaving}
-      className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600"
-    >
-      Cancel
-    </button>
-
-  </div>
-              ) : (
-                <button
-                  onClick={() => setEditMode(true)}
-                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+      case "experience":
+        return (editMode || localData.experience?.length > 0) && (
+          <div key="experience" className="mb-8">
+            <SectionHeading title="Experience" icon={Briefcase} />
+            <div className="space-y-6">
+              {localData.experience?.map((exp, i) => (
+                <div 
+                  key={i} 
+                  className="bg-gray-50 rounded-xl p-6 border-l-4 border-blue-600 relative"
                 >
-                  Edit Resume
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("experience", i)} 
+                      className="absolute top-2 right-2 text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={exp.title} 
+                        onChange={(e) => handleNestedChange("experience", i, "title", e.target.value)} 
+                        className="w-full font-bold p-2 border rounded" 
+                        placeholder="Job Title" 
+                      />
+                      <input 
+                        type="text" 
+                        value={exp.companyName} 
+                        onChange={(e) => handleNestedChange("experience", i, "companyName", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        placeholder="Company" 
+                      />
+                      <input 
+                        type="text" 
+                        value={exp.date} 
+                        onChange={(e) => handleNestedChange("experience", i, "date", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        placeholder="Date Range" 
+                      />
+                      <textarea 
+                        value={exp.accomplishment} 
+                        onChange={(e) => handleNestedChange("experience", i, "accomplishment", [e.target.value])} 
+                        className="w-full p-2 border rounded" 
+                        rows={3} 
+                        placeholder="Description" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {exp.title}
+                      </h3>
+                      <div className="flex items-center gap-4 text-blue-600 font-semibold mb-2">
+                        <span>{exp.companyName}</span>
+                        <span className="text-gray-400 font-normal">|</span>
+                        <span className="text-sm text-gray-500 flex items-center gap-1">
+                          <Calendar size={14} />
+                          {exp.date}
+                        </span>
+                      </div>
+                      <p className="text-gray-700">
+                        {Array.isArray(exp.accomplishment) ? exp.accomplishment[0] : exp.accomplishment}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("experience", { title: "", companyName: "", date: "", accomplishment: [""] })} 
+                  className="text-blue-600 font-bold flex items-center gap-1"
+                >
+                  <Plus size={18}/> Add Experience
                 </button>
               )}
             </div>
           </div>
+        );
+
+      case "projects":
+        return (editMode || localData.projects?.length > 0) && (
+          <div key="projects" className="mb-8">
+            <SectionHeading title="Projects" icon={Code} />
+            <div className="grid grid-cols-1 gap-6">
+              {localData.projects?.map((proj, i) => (
+                <div 
+                  key={i} 
+                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative"
+                >
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("projects", i)} 
+                      className="absolute top-2 right-2 text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={proj.name} 
+                        onChange={(e) => handleNestedChange("projects", i, "name", e.target.value)} 
+                        className="w-full font-bold p-2 border rounded" 
+                        placeholder="Project Name" 
+                      />
+                      <input 
+                        type="text" 
+                        value={proj.link} 
+                        onChange={(e) => handleNestedChange("projects", i, "link", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        placeholder="Project Link" 
+                      />
+                      <textarea 
+                        value={proj.description} 
+                        onChange={(e) => handleNestedChange("projects", i, "description", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        rows={3} 
+                        placeholder="Description" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-xl font-bold text-gray-800">
+                          {proj.name}
+                        </h3>
+                        {proj.link && (
+                          <a 
+                            href={proj.link} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-blue-600 flex items-center gap-1 text-sm"
+                          >
+                            <ExternalLink size={14} /> View
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-gray-600 leading-relaxed">
+                        {proj.description}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("projects", { name: "", link: "", description: "" })} 
+                  className="text-blue-600 font-bold flex items-center gap-1"
+                >
+                  <Plus size={18}/> Add Project
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "education":
+        return (editMode || localData.education?.length > 0) && (
+          <div key="education" className="mb-8">
+            <SectionHeading title="Education" icon={GraduationCap} />
+            <div className="space-y-4">
+              {localData.education?.map((edu, i) => (
+                <div key={i} className="bg-blue-50/50 rounded-xl p-4 relative">
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("education", i)} 
+                      className="absolute top-2 right-2 text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={edu.degree} 
+                        onChange={(e) => handleNestedChange("education", i, "degree", e.target.value)} 
+                        className="w-full font-bold p-1 border rounded" 
+                      />
+                      <input 
+                        type="text" 
+                        value={edu.institution} 
+                        onChange={(e) => handleNestedChange("education", i, "institution", e.target.value)} 
+                        className="w-full p-1 border rounded" 
+                      />
+                      <input 
+                        type="text" 
+                        value={edu.duration} 
+                        onChange={(e) => handleNestedChange("education", i, "duration", e.target.value)} 
+                        className="w-full p-1 border rounded" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-bold text-gray-800">
+                        {edu.degree}
+                      </h3>
+                      <p className="text-blue-700 font-medium">
+                        {edu.institution}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {edu.duration}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("education", { degree: "", institution: "", duration: "" })} 
+                  className="text-blue-600 font-bold flex items-center gap-1 text-sm"
+                >
+                  <Plus size={14}/> Add Education
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "skills":
+        return (editMode || localData.skills?.length > 0) && (
+          <div key="skills" className="mb-8">
+            <SectionHeading title="Skills" icon={Award} />
+            {editMode ? (
+              <ChipInput 
+                chips={localData.skills} 
+                onChange={(newChips) => handleFieldChange("skills", newChips)} 
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {localData.skills?.map((skill, i) => (
+                  <span 
+                    key={i} 
+                    className="bg-blue-100 text-blue-800 px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case "certifications":
+        return (editMode || localData.certifications?.length > 0) && (
+          <div key="certifications" className="mb-8">
+            <SectionHeading title="Certifications" icon={Scroll} />
+            <div className="space-y-3">
+              {localData.certifications?.map((cert, i) => (
+                <div key={i} className="flex items-start gap-3 relative">
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("certifications", i)} 
+                      className="text-red-500 mt-1"
+                    >
+                      <Trash2 size={14}/>
+                    </button>
+                  )}
+                  <div>
+                    {editMode ? (
+                      <input 
+                        value={cert.title} 
+                        onChange={(e) => handleNestedChange("certifications", i, "title", e.target.value)} 
+                        className="font-bold border-b border-gray-300 outline-none" 
+                      />
+                    ) : (
+                      <p className="font-bold text-gray-800">
+                        {cert.title}
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-500">
+                      {cert.issuer} • {cert.date}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("certifications", { title: "", issuer: "", date: "" })} 
+                  className="text-blue-600 font-bold text-xs"
+                >
+                  + Add Cert
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "achievements":
+        return (editMode || localData.achievements?.length > 0) && (
+          <div key="achievements" className="mb-8">
+            <SectionHeading title="Achievements" icon={Award} />
+            <ul className="list-disc list-inside space-y-2 text-gray-700">
+              {localData.achievements?.map((ach, i) => (
+                <li key={i} className="relative group">
+                  {editMode ? (
+                    <input 
+                      value={typeof ach === 'string' ? ach : ach.title} 
+                      onChange={(e) => {
+                        const newAch = [...localData.achievements];
+                        newAch[i] = e.target.value;
+                        handleFieldChange("achievements", newAch);
+                      }} 
+                      className="w-11/12 border-b border-gray-300 outline-none" 
+                    />
+                  ) : (
+                    <span>{typeof ach === 'string' ? ach : ach.title}</span>
+                  )}
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("achievements", i)} 
+                      className="text-red-500 ml-2"
+                    >
+                      <Trash2 size={12}/>
+                    </button>
+                  )}
+                </li>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("achievements", "New Achievement")} 
+                  className="text-blue-600 font-bold text-xs"
+                >
+                  + Add Achievement
+                </button>
+              )}
+            </ul>
+          </div>
+        );
+
+      case "languages":
+        return (editMode || localData.languages?.length > 0) && (
+          <div key="languages" className="mb-8">
+            <SectionHeading title="Languages" icon={Globe} />
+            {editMode ? (
+              <ChipInput 
+                chips={localData.languages} 
+                onChange={(newChips) => handleFieldChange("languages", newChips)} 
+              />
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {localData.languages?.map((lang, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"/> 
+                    <span className="font-medium text-gray-700">{lang}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case "interests":
+        return (editMode || localData.interests?.length > 0) && (
+          <div key="interests" className="mb-8">
+            <SectionHeading title="Interests" icon={Heart} />
+            {editMode ? (
+              <ChipInput 
+                chips={localData.interests} 
+                onChange={(newChips) => handleFieldChange("interests", newChips)} 
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {localData.interests?.map((int, i) => (
+                  <span 
+                    key={i} 
+                    className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium"
+                  >
+                    {int}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      default: 
+        return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <Navbar />
+      <div className="flex">
+        <Sidebar 
+          onDownload={handleDownload} 
+          onSave={handleSave} 
+          resumeRef={resumeRef} 
+        />
+        
+          {/* Undo/Redo Buttons */}
+          <div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}} data-pdf-hide="true">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              style={{padding: "8px 16px", background: canUndo ? "#4f46e5" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canUndo ? "pointer" : "not-allowed"}}
+              title="Undo"
+            >
+              ↩ Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              style={{padding: "8px 16px", background: canRedo ? "#0891b2" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canRedo ? "pointer" : "not-allowed"}}
+              title="Redo"
+            >
+              Redo ↪
+            </button>
+          </div>
+<div className="flex-grow p-8 flex flex-col items-center pb-24">
+          <div 
+            ref={resumeRef} 
+            style={{ 
+              fontFamily: templateSettings.fontFamily, 
+              backgroundColor: "#ffffff", 
+              borderRadius: "1rem", 
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)", 
+              maxWidth: "210mm", 
+              width: "100%", 
+              minHeight: "297mm" 
+            }}
+          >
+            
+            {/* Header Section */}
+            <div 
+              style={{ 
+                background: "linear-gradient(to right, #2563eb, #1e40af)", 
+                color: "#ffffff", 
+                padding: "2.5rem" 
+              }} 
+              className="rounded-t-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={localData.name} 
+                        onChange={(e) => handleFieldChange("name", e.target.value)} 
+                        className="text-4xl font-bold bg-transparent border-b-2 border-white/30 w-full outline-none" 
+                      />
+                      <input 
+                        type="text" 
+                        value={localData.role} 
+                        onChange={(e) => handleFieldChange("role", e.target.value)} 
+                        className="text-xl text-blue-200 bg-transparent border-b-2 border-white/30 w-full outline-none" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <h1 className="text-4xl font-bold mb-2 tracking-tight">
+                        {localData.name}
+                      </h1>
+                      <p className="text-xl text-blue-100 font-medium">
+                        {localData.role}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className="relative group">
+                  <img 
+                    src={uploadedPhoto || templateSettings.photo} 
+                    alt="Profile" 
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover" 
+                  />
+                  {editMode && (
+                    <label 
+                      htmlFor="photo-upload" 
+                      className="absolute bottom-0 right-0 bg-white p-2 rounded-full text-blue-600 shadow-lg cursor-pointer"
+                    >
+                      <Plus size={20} />
+                      <input 
+                        id="photo-upload" 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handlePhotoChange} 
+                        className="hidden" 
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Contact Bar */}
+            <div className="bg-gray-800 text-white px-8 py-5 flex flex-wrap justify-between gap-4 text-sm shadow-inner">
+              <div className="flex items-center gap-2">
+                <Mail className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.email} 
+                    onChange={(e) => handleFieldChange("email", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <a href={`mailto:${localData.email}`} style={{color:"inherit"}} target="_blank" rel="noopener noreferrer">{localData.email}</a>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.phone} 
+                    onChange={(e) => handleFieldChange("phone", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <span>{localData.phone}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.location} 
+                    onChange={(e) => handleFieldChange("location", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <span>{localData.location}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Linkedin className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.linkedin} 
+                    onChange={(e) => handleFieldChange("linkedin", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <a href={(localData.linkedin && !/^https?:\/\//i.test(localData.linkedin)) ? `https://\${localData.linkedin} target="_blank" rel="noopener noreferrer"` : localData.linkedin} className="hover:underline">
+                    LinkedIn Profile
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* DYNAMIC BODY */}
+            <div className="p-10 space-y-2">
+              {sectionOrder.map((sectionKey) => (
+                <React.Fragment key={sectionKey}>
+                  {renderSection(sectionKey)}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-10 flex gap-6">
+            {editMode ? (
+              <>
+                <button 
+                  onClick={handleSave} 
+                  className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all"
+                >
+                  Save Changes
+                </button>
+                <button 
+                  onClick={handleCancel} 
+                  className="bg-gray-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-gray-600 transition-all"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={() => setEditMode(true)} 
+                className="bg-blue-600 text-white px-10 py-4 rounded-xl font-bold shadow-xl hover:bg-blue-700 transition-all transform hover:scale-105"
+              >
+                Edit Resume
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      {showLoginPrompt && <LoginPrompt onClose={() => setShowLoginPrompt(false)} />}
     </div>
   );
 };
 
-export default Template14;
+export default Template13;

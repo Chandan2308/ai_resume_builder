@@ -1,836 +1,838 @@
-import React, { useState, useEffect, useRef, forwardRef } from "react";
+import React, { 
+  useState, 
+  useRef, 
+  useEffect 
+} from "react";
+import useUndoRedo from "../../hooks/useUndoRedo";
 import Sidebar from "../Sidebar/Sidebar";
 import Navbar from "../Navbar/Navbar";
 import { useResume } from "../../context/ResumeContext";
-import PropTypes from "prop-types";
-import { getSafeUrl } from "../../utils/ResumeConfig"; // Import URL helper
-import useUndoRedo from "../../hooks/useUndoRedo";
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Linkedin,
+  Github,
+  Briefcase,
+  GraduationCap,
+  User,
+  Award,
+  Globe,
+  Calendar,
+  Code,
+  BookOpen,
+  Heart,
+  Scroll,
+  Plus,
+  Trash2,
+  ExternalLink
+} from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { toast } from "react-toastify";
 
-// --- Helper function to safely render text from objects or strings ---
-const renderSafeText = (item) => {
-  if (!item) return "";
-  if (typeof item === "string") return item;
-  if (typeof item === "object") {
-    // Try common property names in order of priority
-    return item.title || item.name || item.language || item.degree || JSON.stringify(item);
-  }
-  return String(item);
-};
+const Template13 = () => {
+  const resumeRef = useRef(null);
+  const { 
+    resumeData, 
+    updateResumeData, 
+    sectionOrder 
+  } = useResume();
+  
+  const [editMode, setEditMode] = useState(false);
+  const {
+    state: localData,
+    setState: setLocalData,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoRedo(resumeData || {});
 
-// --- Resume Preview Component (PURE INLINE STYLES - NO CSS CLASSES) ---
-const UserResumePreview = forwardRef(
-  ({ data, themeColor, zoomLevel, sectionOrder }, ref) => {
-   
-    // Custom theme colors
-    const theme = {
-      text: "#000000",       
-      accent: "#4b42f5",     
-      bullet: "#4b42f5",     
-      gray: "#555555"        
+  const [templateSettings, setTemplateSettings] = useState({
+    fontFamily: "'Inter', sans-serif",
+    primaryColor: "#1e40af",
+    secondaryColor: "#64748b",
+    accentColor: "#f59e0b",
+    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80",
+  });
+
+  const [uploadedPhoto, setUploadedPhoto] = useState(null);
+
+  /**
+   * ChipInput Component
+   * Handles Skills, Languages, and Interests
+   */
+  const ChipInput = ({ 
+    chips = [], 
+    onChange, 
+    placeholder = "Add item" 
+  }) => {
+    const inputRef = useRef(null);
+    
+    useEffect(() => { 
+      if (!Array.isArray(chips)) { 
+        onChange([]); 
+      } 
+    }, []);
+
+    const addChip = (value) => {
+      const v = String(value || "").trim();
+      if (!v) return;
+      const exists = chips.some((c) => c.toLowerCase() === v.toLowerCase());
+      if (exists) return;
+      onChange([...chips, v]);
     };
 
-    // Safety check
-    if (!data) return null;
-
-    // Helper components with inline styles only
-    const Section = ({ title, children, icon }) => (
-      <section style={{ marginBottom: "1.5rem" }}>
-        {title && (
-          <h2 style={{ 
-            fontSize: "1.5rem", 
-            fontWeight: "bold", 
-            marginBottom: "0.75rem", 
-            display: "flex", 
-            alignItems: "center",
-            color: theme.accent,
-            borderBottom: "0px"
-          }}>
-            <span style={{ marginRight: "0.5rem", fontSize: "1.5rem" }}>{icon}</span>
-            {title}
-          </h2>
-        )}
-        {children}
-      </section>
-    );
-
-    // Map section keys to their display components
-    const sectionComponents = {
-      // SUMMARY
-      summary: data.summary && (
-        <Section key="summary" title="Summary" icon="👤">
-          <p style={{ fontSize: "1rem", lineHeight: "1.6", textAlign: "justify", color: "#333333", margin: 0 }}>
-            {renderSafeText(data.summary)}
-          </p>
-        </Section>
-      ),
-
-      // EXPERIENCE
-      experience: Array.isArray(data.experience) && data.experience.length > 0 && (
-        <Section key="experience" title="Experience" icon="💼">
-          {data.experience.map((exp, i) => (
-            <div key={exp.id || i} style={{ marginBottom: "1.5rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.25rem" }}>
-                <h3 style={{ fontSize: "1.125rem", color: "#000000", margin: 0 }}>
-                  <span style={{ fontWeight: "bold" }}>{renderSafeText(exp.title)}</span>
-                  {exp.companyName && (
-                    <>
-                       {" at "}
-                      <span style={{ fontWeight: "bold", color: theme.accent }}>
-                        {renderSafeText(exp.companyName)}
-                      </span>
-                    </>
-                  )}
-                </h3>
-                <span style={{ fontSize: "0.875rem", fontWeight: "bold", whiteSpace: "nowrap", color: "#555555" }}>
-                  {exp.date}
-                </span>
-              </div>
-              
-              <p style={{ fontSize: "0.875rem", fontStyle: "italic", marginBottom: "0.5rem", color: "#666666", margin: 0 }}>
-                {exp.companyLocation}
-              </p>
-
-              <ul style={{ listStyle: "none", paddingLeft: "0.5rem", margin: 0 }}>
-                {Array.isArray(exp.accomplishment) && exp.accomplishment.map((point, j) => {
-                  const safePoint = renderSafeText(point);
-                  return safePoint && safePoint.trim() !== "" && (
-                    <li key={j} style={{ display: "flex", alignItems: "flex-start", fontSize: "1rem", marginBottom: "0.25rem" }}>
-                      <span style={{ marginRight: "0.5rem", fontSize: "1.25rem", lineHeight: "1", color: theme.bullet }}>•</span> 
-                      <span>{safePoint}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </Section>
-      ),
-
-      // EDUCATION
-      education: Array.isArray(data.education) && data.education.length > 0 && (
-        <Section key="education" title="Education" icon="🎓">
-          {data.education.map((edu, i) => (
-            <div key={edu.id || i} style={{ marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "bold", color: "#000000", margin: 0 }}>
-                  {renderSafeText(edu.degree)}
-                </h3>
-                <span style={{ fontSize: "0.875rem", fontWeight: "bold", whiteSpace: "nowrap", color: "#555555" }}>
-                  {edu.duration}
-                </span>
-              </div>
-              <p style={{ fontSize: "1rem", fontStyle: "italic", color: theme.accent, margin: 0 }}>
-                {renderSafeText(edu.institution)}
-              </p>
-              <p style={{ fontSize: "0.875rem", color: "#555555", margin: 0 }}>
-                {edu.location}
-              </p>
-            </div>
-          ))}
-        </Section>
-      ),
-
-      // SKILLS
-      skills: Array.isArray(data.skills) && data.skills.length > 0 && (
-        <Section key="skills" title="Skills" icon="💡">
-          <ul style={{ listStyle: "none", paddingLeft: "0.5rem", margin: 0 }}>
-            {data.skills.map((skill, i) => {
-              const safeSkill = renderSafeText(skill);
-              return safeSkill && safeSkill.trim() ? (
-                <li key={i} style={{ display: "flex", alignItems: "center", fontSize: "1rem", marginBottom: "0.25rem" }}>
-                  <span style={{ marginRight: "0.5rem", fontSize: "1.5rem", lineHeight: "1", color: theme.bullet }}>•</span>
-                  <span>{safeSkill}</span>
-                </li>
-              ) : null;
-            })}
-          </ul>
-        </Section>
-      ),
-
-      // PROJECTS
-      projects: Array.isArray(data.projects) && data.projects.length > 0 && (
-        <Section key="projects" title="Projects" icon="🚀">
-          {data.projects.map((project, i) => (
-            <div key={project.id || i} style={{ marginBottom: "1.25rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "bold", color: "#000000", margin: 0 }}>
-                  {renderSafeText(project.name)}
-                </h3>
-                {project.link && (
-                  <a href={getSafeUrl("portfolio", project.link)} target="_blank" rel="noreferrer" style={{ fontSize: "0.875rem", color: theme.accent, textDecoration: "none" }}>
-                    View Project ↗
-                  </a>
-                )}
-              </div>
-              {project.technologies && (
-                <p style={{ fontSize: "0.875rem", marginBottom: "0.25rem", color: "#444444", margin: 0 }}>
-                  <span style={{ fontWeight: "bold" }}>Tech Stack: </span>
-                  {Array.isArray(project.technologies) 
-                    ? project.technologies.map(t => renderSafeText(t)).join(", ") 
-                    : renderSafeText(project.technologies)}
-                </p>
-              )}
-              <p style={{ fontSize: "1rem", color: "#000000", margin: 0 }}>{renderSafeText(project.description)}</p>
-            </div>
-          ))}
-        </Section>
-      ),
-
-      // CERTIFICATIONS
-      certifications: Array.isArray(data.certifications) && data.certifications.length > 0 && (
-        <Section key="certifications" title="Certifications" icon="📜">
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {data.certifications.map((cert, i) => (
-              <li key={cert.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid #f3f4f6", paddingBottom: "0.5rem", marginBottom: "0.5rem" }}>
-                <div>
-                  <h4 style={{ fontSize: "1rem", fontWeight: "bold", color: "#000000", margin: 0 }}>{renderSafeText(cert.title)}</h4>
-                  <p style={{ fontSize: "0.875rem", fontStyle: "italic", color: "#555555", margin: 0 }}>{renderSafeText(cert.issuer)}</p>
-                </div>
-                <span style={{ fontSize: "0.875rem", fontWeight: "bold", color: "#555555" }}>{cert.date}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ),
-
-      // ACHIEVEMENTS
-      achievements: Array.isArray(data.achievements) && data.achievements.length > 0 && (
-        <Section key="achievements" title="Achievements" icon="🏆">
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {data.achievements.map((ach, i) => {
-              if (typeof ach === 'object') {
-                return (
-                  <li key={i} style={{ borderBottom: "1px solid #f3f4f6", paddingBottom: "0.5rem", marginBottom: "0.5rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <h4 style={{ fontSize: "1rem", fontWeight: "bold", color: "#000000", margin: 0 }}>{renderSafeText(ach.title)}</h4>
-                      <span style={{ fontSize: "0.875rem", fontWeight: "bold", color: "#555555" }}>{ach.date}</span>
-                    </div>
-                    <p style={{ fontSize: "0.875rem", fontStyle: "italic", color: "#555555", margin: 0 }}>{renderSafeText(ach.description)}</p>
-                  </li>
-                );
-              } else {
-                const safeAch = renderSafeText(ach);
-                return safeAch && (
-                  <li key={i} style={{ display: "flex", alignItems: "flex-start", fontSize: "1rem", marginBottom: "0.25rem" }}>
-                    <span style={{ marginRight: "0.5rem", fontSize: "1.25rem", lineHeight: "1", color: theme.bullet }}>•</span>
-                    {safeAch}
-                  </li>
-                );
-              }
-            })}
-          </ul>
-        </Section>
-      ),
-
-      // LANGUAGES
-      languages: Array.isArray(data.languages) && data.languages.length > 0 && (
-        <Section key="languages" title="Languages" icon="🗣️">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
-            {data.languages.map((lang, i) => {
-              const safeLang = renderSafeText(lang);
-              return safeLang && safeLang.trim() ? (
-                <span key={i} style={{ fontSize: "1rem", color: "#000000" }}>
-                  <span style={{ color: theme.accent, marginRight: "0.25rem" }}>•</span>
-                  {safeLang}
-                </span>
-              ) : null;
-            })}
-          </div>
-        </Section>
-      ),
-
-      // INTERESTS
-      interests: Array.isArray(data.interests) && data.interests.length > 0 && (
-        <Section key="interests" title="Interests" icon="🎯">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
-            {data.interests.map((interest, i) => {
-              const safeInterest = renderSafeText(interest);
-              return safeInterest && safeInterest.trim() ? (
-                <span key={i} style={{ fontSize: "1rem", color: "#000000" }}>
-                  <span style={{ color: theme.accent, marginRight: "0.25rem" }}>•</span>
-                  {safeInterest}
-                </span>
-              ) : null;
-            })}
-          </div>
-        </Section>
-      )
+    const removeChip = (index) => {
+      const newChips = [...chips];
+      newChips.splice(index, 1);
+      onChange(newChips);
     };
 
     return (
-      <div
-        ref={ref}
-        id="resume-preview-id"
-        style={{
-          fontFamily: "'Times New Roman', Times, serif", 
-          transform: `scale(${zoomLevel})`,
-          transformOrigin: "top left",
-          color: theme.text,
-          lineHeight: "1.5",
-          backgroundColor: "#ffffff",
-          width: "100%",
-          maxWidth: "210mm", // A4 width
-          margin: "0 auto",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-          overflow: "hidden"
-        }}
-      >
-        {/* --- HEADER --- */}
-        <header style={{ paddingTop: "2.5rem", paddingBottom: "1rem", paddingLeft: "3rem", paddingRight: "3rem", textAlign: "center", backgroundColor: "#ffffff" }}>
-          <h1 style={{ fontSize: "3rem", fontWeight: "bold", marginBottom: "0.5rem", color: "#000000", lineHeight: "1.2" }}>
-            {data.name || "Your Name"}
-          </h1>
-          {data.role && ( 
-            <p style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "1rem", color: theme.accent }}>
-              {data.role}
-            </p>
-          )}
-          
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "1.5rem", fontSize: "1rem", color: theme.gray }}>
-            {data.location && ( 
-              <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-                <span style={{ marginRight: "0.25rem" }}>📍</span>
-                {data.location}
-              </p>
-            )}
-            {data.phone && (
-              <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-                <span style={{ marginRight: "0.25rem" }}>📞</span>
-                <a href={getSafeUrl("phone", data.phone)} style={{ color: "inherit", textDecoration: "none" }}>
-                  {data.phone}
-                </a>
-              </p>
-            )}
-            {data.email && (
-              <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-                <span style={{ marginRight: "0.25rem" }}>✉️</span>
-                <a href={getSafeUrl("email", data.email)} style={{ color: "inherit", textDecoration: "none" }}>
-                  {data.email}
-                </a>
-              </p>
-            )}
-            {data.linkedin && (
-              <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-                <span style={{ marginRight: "0.25rem" }}>🔗</span>
-                <a href={getSafeUrl("linkedin", data.linkedin)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
-                  LinkedIn
-                </a>
-              </p>
-            )}
-            {data.github && (
-              <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-                <span style={{ marginRight: "0.25rem" }}>💻</span>
-                <a href={getSafeUrl("github", data.github)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
-                  GitHub
-                </a>
-              </p>
-            )}
-            {data.portfolio && ( 
-              <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-                <span style={{ marginRight: "0.25rem" }}>🌐</span>
-                <a href={getSafeUrl("portfolio", data.portfolio)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
-                  Portfolio
-                </a>
-              </p>
-            )}
-          </div>
-        </header>
-
-        {/* Horizontal Line */}
-        <div style={{ margin: "0 3rem 2rem 3rem", borderBottom: "2px solid #000000", opacity: 0.8 }}></div>
-
-        <div style={{ paddingLeft: "3rem", paddingRight: "3rem", paddingBottom: "3rem", backgroundColor: "#ffffff" }}>
-          {/* DYNAMIC SECTION RENDERING - Using sectionOrder from context */}
-          {(sectionOrder || [
-            "summary", "experience", "education", "skills", "projects", 
-            "certifications", "achievements", "languages", "interests"
-          ]).map((sectionKey) => sectionComponents[sectionKey] || null)}
-        </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        {chips.map((chip, idx) => (
+          <span 
+            key={idx} 
+            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center gap-2"
+          >
+            <span className="text-sm font-medium">{chip}</span>
+            <button 
+              type="button" 
+              onClick={() => removeChip(idx)} 
+              className="text-red-500 font-bold ml-1"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          className="p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400 min-w-[140px]"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              addChip(e.target.value);
+              e.target.value = "";
+            } else if (e.key === "Backspace" && !e.target.value && chips.length) {
+              removeChip(chips.length - 1);
+            }
+          }}
+        />
       </div>
     );
-  }
-);
-
-UserResumePreview.displayName = "UserResumePreview";
-UserResumePreview.propTypes = {
-  data: PropTypes.object.isRequired,
-  themeColor: PropTypes.string,
-  zoomLevel: PropTypes.number,
-  sectionOrder: PropTypes.array
-};
-
-// --- FORM HELPER COMPONENTS (Standard CSS Classes are fine here as they aren't printed) ---
-const FormSectionWrapper = ({ title, children }) => (
-  <div className="mb-8 p-5 border rounded-lg bg-slate-50 shadow-sm">
-    <h3 className="text-xl font-semibold text-indigo-700 mb-5">{title}</h3>
-    <div className="space-y-4">{children}</div>
-  </div>
-);
-FormSectionWrapper.propTypes = {
-  title: PropTypes.string.isRequired,
-  children: PropTypes.node.isRequired,
-};
-
-const Input = ({ label, value, onChange, placeholder, type = "text" }) => (
-  <div>
-    <label className="block text-base font-medium text-gray-700 mb-1.5">
-      {label}
-    </label>
-    <input
-      type={type}
-      value={value || ""}
-      onChange={onChange}
-      placeholder={placeholder || label}
-      className="border border-gray-300 p-2.5 w-full rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-    />
-  </div>
-);
-Input.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.string,
-  onChange: PropTypes.func.isRequired,
-  placeholder: PropTypes.string,
-  type: PropTypes.string,
-};
-
-const Textarea = ({ label, value, onChange, placeholder, rows = 3 }) => (
-  <div>
-    <label className="block text-base font-medium text-gray-700 mb-1.5">
-      {label}
-    </label>
-    <textarea
-      value={value || ""}
-      onChange={onChange}
-      placeholder={placeholder || label}
-      rows={rows}
-      className="border border-gray-300 p-2.5 w-full rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-    />
-  </div>
-);
-Textarea.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.string,
-  onChange: PropTypes.func.isRequired,
-  placeholder: PropTypes.string,
-  rows: PropTypes.number,
-};
-
-// --- Resume Edit Form ---
-const UserResumeEditForm = ({ formData, setFormData }) => {
-  const updateField = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
   };
-
-  const handleArrayFieldChange = (section, index, field, value) => {
-    setFormData((prev) => {
-      const newArray = [...(prev[section] || [])];
-      newArray[index] = { ...newArray[index], [field]: value };
-      return { ...prev, [section]: newArray };
-    });
-  };
-
-  const handleExperiencePointChange = (expIndex, pointIndex, value) => {
-    setFormData((prev) => {
-      const newExperience = [...(prev.experience || [])];
-      const currentPoints = newExperience[expIndex].accomplishment
-        ? [...newExperience[expIndex].accomplishment]
-        : [];
-      currentPoints[pointIndex] = value;
-      newExperience[expIndex] = {
-        ...newExperience[expIndex],
-        accomplishment: currentPoints,
-      };
-      return { ...prev, experience: newExperience };
-    });
-  };
-
-  const addArrayItem = (section, template) => {
-    setFormData((prev) => ({
-      ...prev,
-      [section]: [
-        ...(prev[section] || []),
-        { ...template, id: `${section.slice(0, 3)}-${Date.now()}` },
-      ],
-    }));
-  };
-
-  const removeArrayItem = (section, index) => {
-    setFormData((prev) => ({
-      ...prev,
-      [section]: (prev[section] || []).filter((_, i) => i !== index),
-    }));
-  };
-
-  const addExperiencePoint = (expIndex) => {
-    setFormData((prev) => {
-      const newExperience = [...(prev.experience || [])];
-      const currentPoints = newExperience[expIndex].accomplishment
-        ? [...newExperience[expIndex].accomplishment]
-        : [];
-      currentPoints.push("");
-      newExperience[expIndex] = {
-        ...newExperience[expIndex],
-        accomplishment: currentPoints,
-      };
-      return { ...prev, experience: newExperience };
-    });
-  };
-
-  const removeExperiencePoint = (expIndex, pointIndex) => {
-    setFormData((prev) => {
-      const newExperience = [...(prev.experience || [])];
-      if (newExperience[expIndex] && newExperience[expIndex].accomplishment) {
-        newExperience[expIndex] = {
-          ...newExperience[expIndex],
-          accomplishment: newExperience[expIndex].accomplishment.filter(
-            (_, i) => i !== pointIndex
-          ),
-        };
-      }
-      return { ...prev, experience: newExperience };
-    });
-  };
-
-  const handleListChange = (field, value) => {
-    const modifiedValue = value.replace(/\n/g, ",");
-    setFormData((prev) => ({
-      ...prev,
-      [field]: modifiedValue.split(",").map(s => s.trim()).filter(s => s), 
-    }));
-  };
-
-  return (
-    <div className="bg-white p-8 rounded-xl shadow-2xl space-y-8 max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold text-center text-indigo-700 mb-8">
-        Edit Your Resume
-      </h2>
-
-      <FormSectionWrapper title="Personal Details">
-        <Input label="Full Name" value={formData.name} onChange={(e) => updateField("name", e.target.value)} />
-        <Input label="Job Title" value={formData.role} onChange={(e) => updateField("role", e.target.value)} />
-        <Input label="Address" value={formData.location} onChange={(e) => updateField("location", e.target.value)} />
-        <Input label="Phone" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} type="tel" />
-        <Input label="Email" value={formData.email} onChange={(e) => updateField("email", e.target.value)} type="email" />
-        <Input label="LinkedIn" value={formData.linkedin} onChange={(e) => updateField("linkedin", e.target.value)} />
-        <Input label="GitHub" value={formData.github} onChange={(e) => updateField("github", e.target.value)} />
-        <Input label="Portfolio" value={formData.portfolio} onChange={(e) => updateField("portfolio", e.target.value)} />
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Profile Summary">
-        <Textarea label="Summary" value={formData.summary} onChange={(e) => updateField("summary", e.target.value)} rows={5} />
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Work Experience">
-        {(formData.experience || []).map((exp, i) => (
-          <div key={exp.id || i} className="p-4 border rounded-md bg-white space-y-3 relative">
-            <button onClick={() => removeArrayItem("experience", i)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 p-1 font-bold text-xl">🗑️</button>
-            <Input label="Job Title" value={exp.title} onChange={(e) => handleArrayFieldChange("experience", i, "title", e.target.value)} />
-            <Input label="Company" value={exp.companyName} onChange={(e) => handleArrayFieldChange("experience", i, "companyName", e.target.value)} />
-            <Input label="Duration" value={exp.date} onChange={(e) => handleArrayFieldChange("experience", i, "date", e.target.value)} />
-            <Input label="Location" value={exp.companyLocation} onChange={(e) => handleArrayFieldChange("experience", i, "companyLocation", e.target.value)} />
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-1.5">Responsibilities:</label>
-              {(exp.accomplishment || []).map((point, j) => (
-                <div key={j} className="flex items-center mb-2">
-                  <Textarea value={point} onChange={(e) => handleExperiencePointChange(i, j, e.target.value)} rows={1} />
-                  <button onClick={() => removeExperiencePoint(i, j)} className="ml-3 text-red-400 hover:text-red-600 p-1 text-lg">🗑️</button>
-                </div>
-              ))}
-              <button onClick={() => addExperiencePoint(i)} className="text-md text-indigo-600 hover:text-indigo-800 flex items-center mt-2 font-semibold">➕ Add Point</button>
-            </div>
-          </div>
-        ))}
-        <button onClick={() => addArrayItem("experience", { id: `exp-${Date.now()}`, title: "", companyName: "", date: "", companyLocation: "", accomplishment: [""] })} className="bg-indigo-500 text-white px-5 py-2.5 rounded-md hover:bg-indigo-600 flex items-center text-md">➕ Add Experience</button>
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Education">
-        {(formData.education || []).map((edu, i) => (
-          <div key={edu.id || i} className="p-4 border rounded-md bg-white space-y-3 relative">
-            <button onClick={() => removeArrayItem("education", i)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 p-1 text-xl">🗑️</button>
-            <Input label="Duration" value={edu.duration} onChange={(e) => handleArrayFieldChange("education", i, "duration", e.target.value)} />
-            <Input label="Degree" value={edu.degree} onChange={(e) => handleArrayFieldChange("education", i, "degree", e.target.value)} />
-            <Input label="Institution" value={edu.institution} onChange={(e) => handleArrayFieldChange("education", i, "institution", e.target.value)} />
-            <Input label="Location" value={edu.location} onChange={(e) => handleArrayFieldChange("education", i, "location", e.target.value)} />
-          </div>
-        ))}
-        <button onClick={() => addArrayItem("education", { id: `edu-${Date.now()}`, duration: "", degree: "", institution: "", location: "" })} className="bg-indigo-500 text-white px-5 py-2.5 rounded-md hover:bg-indigo-600 flex items-center text-md">➕ Add Education</button>
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Projects">
-        {(formData.projects || []).map((proj, i) => (
-          <div key={proj.id || i} className="p-4 border rounded-md bg-white space-y-3 relative">
-            <button onClick={() => removeArrayItem("projects", i)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 p-1 text-xl">🗑️</button>
-            <Input label="Project Name" value={proj.name} onChange={(e) => handleArrayFieldChange("projects", i, "name", e.target.value)} />
-            <Input label="Technologies (comma separated)" value={Array.isArray(proj.technologies) ? proj.technologies.join(", ") : proj.technologies || ""} onChange={(e) => handleArrayFieldChange("projects", i, "technologies", e.target.value.split(",").map(t => t.trim()).filter(t => t))} />
-            <Input label="Project Link" value={proj.link} onChange={(e) => handleArrayFieldChange("projects", i, "link", e.target.value)} />
-            <Textarea label="Description" value={proj.description} onChange={(e) => handleArrayFieldChange("projects", i, "description", e.target.value)} rows={3} />
-          </div>
-        ))}
-        <button onClick={() => addArrayItem("projects", { id: `proj-${Date.now()}`, name: "", technologies: [], link: "", description: "" })} className="bg-indigo-500 text-white px-5 py-2.5 rounded-md hover:bg-indigo-600 flex items-center text-md">➕ Add Project</button>
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Certifications">
-        {(formData.certifications || []).map((cert, i) => (
-          <div key={cert.id || i} className="p-4 border rounded-md bg-white space-y-3 relative">
-            <button onClick={() => removeArrayItem("certifications", i)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 p-1 text-xl">🗑️</button>
-            <Input label="Title" value={cert.title} onChange={(e) => handleArrayFieldChange("certifications", i, "title", e.target.value)} />
-            <Input label="Issuer" value={cert.issuer} onChange={(e) => handleArrayFieldChange("certifications", i, "issuer", e.target.value)} />
-            <Input label="Date" value={cert.date} onChange={(e) => handleArrayFieldChange("certifications", i, "date", e.target.value)} />
-          </div>
-        ))}
-        <button onClick={() => addArrayItem("certifications", { id: `cert-${Date.now()}`, title: "", issuer: "", date: "" })} className="bg-indigo-500 text-white px-5 py-2.5 rounded-md hover:bg-indigo-600 flex items-center text-md">➕ Add Certification</button>
-      </FormSectionWrapper>
-
-      {/* ========== FIXED ACHIEVEMENTS SECTION ========== */}
-      <FormSectionWrapper title="Achievements">
-        {Array.isArray(formData.achievements) && formData.achievements.map((ach, i) => (
-          <div key={ach.id || i} className="p-4 border rounded-md bg-white space-y-3 relative">
-            <button onClick={() => removeArrayItem("achievements", i)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 p-1 text-xl">🗑️</button>
-            <Input label="Achievement Title" value={ach.title || ""} onChange={(e) => handleArrayFieldChange("achievements", i, "title", e.target.value)} placeholder="e.g. Hackathon Winner" />
-            <Input label="Description / Organization" value={ach.description || ""} onChange={(e) => handleArrayFieldChange("achievements", i, "description", e.target.value)} placeholder="e.g. Smart India Hackathon" />
-            <Input label="Date / Year" value={ach.date || ""} onChange={(e) => handleArrayFieldChange("achievements", i, "date", e.target.value)} placeholder="e.g. 2025" />
-          </div>
-        ))}
-        <button onClick={() => addArrayItem("achievements", { id: `ach-${Date.now()}`, title: "", description: "", date: "" })} className="bg-indigo-500 text-white px-5 py-2.5 rounded-md hover:bg-indigo-600 flex items-center text-md">➕ Add Achievement</button>
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Skills">
-        <Textarea label="Skills (comma-separated)" value={(formData.skills || []).join(", ")} onChange={(e) => handleListChange("skills", e.target.value)} />
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Languages">
-        <Textarea label="Languages (comma-separated)" value={(formData.languages || []).join(", ")} onChange={(e) => handleListChange("languages", e.target.value)} />
-      </FormSectionWrapper>
-
-      <FormSectionWrapper title="Interests">
-        <Textarea label="Interests (comma-separated)" value={(formData.interests || []).join(", ")} onChange={(e) => handleListChange("interests", e.target.value)} />
-      </FormSectionWrapper>
-    </div>
-  );
-};
-
-UserResumeEditForm.propTypes = {
-  formData: PropTypes.object.isRequired,
-  setFormData: PropTypes.func.isRequired,
-};
-
-// --- Main Template Component ---
-const Template15 = () => {
-  const { resumeData, updateResumeData, sectionOrder } = useResume();
-  // const [formData, setFormData] = useState(null); 
-  const [isEditing, setIsEditing] = useState(false);
-  const resumeRef = useRef(null);
-
-
-  const {
-  state: formData,
-  setState: setFormData,
-  undo,
-  redo,
-  canUndo,
-  canRedo
-} = useUndoRedo(resumeData || {});
-
-const handleUndo = () => {
-  if (!canUndo) {
-    toast.info("Nothing to undo");
-    return;
-  }
-  undo();
-  toast.success("Undo applied");
-};
-
-const handleRedo = () => {
-  if (!canRedo) {
-    toast.info("Nothing to redo");
-    return;
-  }
-  redo();
-  toast.success("Redo applied");
-};
 
   useEffect(() => {
     if (resumeData) {
-      let cleanAchievements = resumeData.achievements || [];
-      if (cleanAchievements.length > 0 && typeof cleanAchievements[0] === 'string') {
-         cleanAchievements = cleanAchievements.map(a => ({ title: a, description: "", date: "" }));
-      }
-
-      setFormData({
+      setLocalData({
         ...resumeData,
         projects: resumeData.projects || [],
         certifications: resumeData.certifications || [],
-        achievements: cleanAchievements, 
+        achievements: resumeData.achievements || [],
+        courses: resumeData.courses || [],
+        interests: resumeData.interests || [],
         skills: resumeData.skills || [],
         languages: resumeData.languages || [],
-        interests: resumeData.interests || [],
         experience: resumeData.experience || [],
-        education: resumeData.education || []
+        education: resumeData.education || [],
       });
     }
   }, [resumeData]);
 
+  const handleFieldChange = (field, value) => {
+    setLocalData(prev => ({ 
+      ...prev, 
+      [field]: value 
+    }));
+  };
+
+  const handleNestedChange = (arrayKey, index, field, value) => {
+    setLocalData(prev => ({
+      ...prev,
+      [arrayKey]: prev[arrayKey].map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ),
+    }));
+  };
+
+  const handleAddItem = (section, template) => {
+    setLocalData(prev => ({
+      ...prev,
+      [section]: [...(prev[section] || []), template],
+    }));
+  };
+
+  const handleRemoveItem = (section, index) => {
+    setLocalData(prev => ({
+      ...prev,
+      [section]: prev[section].filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSave = () => {
-    if (updateResumeData) {
-      updateResumeData(formData);
-    }
-    setIsEditing(false);
+    updateResumeData(localData);
+    setEditMode(false);
+    toast.success("Resume saved successfully!");
   };
-  
+
   const handleCancel = () => {
-    setFormData(resumeData);
-    setIsEditing(false);
+    setLocalData(resumeData);
+    setEditMode(false);
   };
-  
-  const handleEdit = () => {
-    setIsEditing(true);
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedPhoto(reader.result);
+        setTemplateSettings((prev) => ({ 
+          ...prev, 
+          photo: reader.result 
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDownload = async () => {
     const element = resumeRef.current;
-    if (!element) {
-      alert("Resume element not found!");
-      return;
-    }
+    if (!element) return;
     try {
-      const clone = element.cloneNode(true);
-      
-      // Create a container to hold the clone, preventing inheritance of global styles
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.top = '-9999px';
-      container.style.left = '-9999px';
-      container.style.width = '210mm'; 
-      container.style.backgroundColor = '#ffffff'; 
-      container.style.color = '#000000';
-      container.style.fontFamily = "'Times New Roman', Times, serif";
-      
-      container.appendChild(clone);
-      document.body.appendChild(container);
-
-      clone.style.transform = 'scale(1)';
-      clone.style.margin = '0';
-      clone.style.boxShadow = 'none';
-      clone.style.transformOrigin = 'top left';
-      clone.style.backgroundColor = '#ffffff';
-      
-      const canvas = await html2canvas(clone, { 
+      const canvas = await html2canvas(element, { 
         scale: 2, 
-        useCORS: true, 
-        backgroundColor: "#ffffff", 
-        logging: false
+        useCORS: true 
       });
-
-      document.body.removeChild(container);
-
       const imgData = canvas.toDataURL("image/png");
-      const pdfWidth = 210;
+      const pdf = new jsPDF({ 
+        orientation: "portrait", 
+        unit: "mm", 
+        format: "a4" 
+      });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfWidth, pdfHeight] });
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      const downloadName = (resumeData.name || "Resume").replace(/\s+/g, "_");
-      pdf.save(`${downloadName}_Resume.pdf`);
-
-    } catch (error) {
-      console.error("PDF Generation Error:", error);
-      alert(`Failed to download PDF: ${error.message}.`);
+      pdf.save(`${localData.name || "Resume"}.pdf`);
+    } catch (error) { 
+      console.error("PDF Error", error); 
     }
   };
 
-  if (!formData || !resumeData) {
-    return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <p>Loading Your Resume...</p>
-        </div>
-    );
-  }
+  const SectionHeading = ({ title, icon: Icon }) => (
+    <div className="flex items-center gap-3 mb-6 mt-4 first:mt-0">
+      <div className="w-1 h-8 bg-gradient-to-b from-blue-600 to-blue-800 rounded-full"></div>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="w-5 h-5 text-blue-600" />}
+        <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide">
+          {title}
+        </h2>
+      </div>
+    </div>
+  );
 
-  // Floating button styles
-  const buttonStyle = { 
-    padding: "0.75rem 1.5rem", 
-    borderRadius: "0.375rem", 
-    border: "none", 
-    fontSize: "1rem", 
-    fontWeight: "600", 
-    cursor: "pointer", 
-    transition: "all 0.3s" 
+  const renderSection = (sectionKey) => {
+    switch (sectionKey) {
+      case "summary":
+        return (editMode || localData.summary) && (
+          <div key="summary" className="mb-8">
+            <SectionHeading title="Professional Summary" icon={User} />
+            {editMode ? (
+              <textarea 
+                value={localData.summary} 
+                onChange={(e) => handleFieldChange("summary", e.target.value)} 
+                className="w-full text-gray-700 leading-relaxed p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                rows={4} 
+              />
+            ) : (
+              <p className="text-gray-700 leading-relaxed text-lg">
+                {localData.summary}
+              </p>
+            )}
+          </div>
+        );
+
+      case "experience":
+        return (editMode || localData.experience?.length > 0) && (
+          <div key="experience" className="mb-8">
+            <SectionHeading title="Experience" icon={Briefcase} />
+            <div className="space-y-6">
+              {localData.experience?.map((exp, i) => (
+                <div 
+                  key={i} 
+                  className="bg-gray-50 rounded-xl p-6 border-l-4 border-blue-600 relative"
+                >
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("experience", i)} 
+                      className="absolute top-2 right-2 text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={exp.title} 
+                        onChange={(e) => handleNestedChange("experience", i, "title", e.target.value)} 
+                        className="w-full font-bold p-2 border rounded" 
+                        placeholder="Job Title" 
+                      />
+                      <input 
+                        type="text" 
+                        value={exp.companyName} 
+                        onChange={(e) => handleNestedChange("experience", i, "companyName", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        placeholder="Company" 
+                      />
+                      <input 
+                        type="text" 
+                        value={exp.date} 
+                        onChange={(e) => handleNestedChange("experience", i, "date", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        placeholder="Date Range" 
+                      />
+                      <textarea 
+                        value={exp.accomplishment} 
+                        onChange={(e) => handleNestedChange("experience", i, "accomplishment", [e.target.value])} 
+                        className="w-full p-2 border rounded" 
+                        rows={3} 
+                        placeholder="Description" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {exp.title}
+                      </h3>
+                      <div className="flex items-center gap-4 text-blue-600 font-semibold mb-2">
+                        <span>{exp.companyName}</span>
+                        <span className="text-gray-400 font-normal">|</span>
+                        <span className="text-sm text-gray-500 flex items-center gap-1">
+                          <Calendar size={14} />
+                          {exp.date}
+                        </span>
+                      </div>
+                      <p className="text-gray-700">
+                        {Array.isArray(exp.accomplishment) ? exp.accomplishment[0] : exp.accomplishment}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("experience", { title: "", companyName: "", date: "", accomplishment: [""] })} 
+                  className="text-blue-600 font-bold flex items-center gap-1"
+                >
+                  <Plus size={18}/> Add Experience
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "projects":
+        return (editMode || localData.projects?.length > 0) && (
+          <div key="projects" className="mb-8">
+            <SectionHeading title="Projects" icon={Code} />
+            <div className="grid grid-cols-1 gap-6">
+              {localData.projects?.map((proj, i) => (
+                <div 
+                  key={i} 
+                  className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative"
+                >
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("projects", i)} 
+                      className="absolute top-2 right-2 text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={proj.name} 
+                        onChange={(e) => handleNestedChange("projects", i, "name", e.target.value)} 
+                        className="w-full font-bold p-2 border rounded" 
+                        placeholder="Project Name" 
+                      />
+                      <input 
+                        type="text" 
+                        value={proj.link} 
+                        onChange={(e) => handleNestedChange("projects", i, "link", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        placeholder="Project Link" 
+                      />
+                      <textarea 
+                        value={proj.description} 
+                        onChange={(e) => handleNestedChange("projects", i, "description", e.target.value)} 
+                        className="w-full p-2 border rounded" 
+                        rows={3} 
+                        placeholder="Description" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-xl font-bold text-gray-800">
+                          {proj.name}
+                        </h3>
+                        {proj.link && (
+                          <a 
+                            href={proj.link} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-blue-600 flex items-center gap-1 text-sm"
+                          >
+                            <ExternalLink size={14} /> View
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-gray-600 leading-relaxed">
+                        {proj.description}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("projects", { name: "", link: "", description: "" })} 
+                  className="text-blue-600 font-bold flex items-center gap-1"
+                >
+                  <Plus size={18}/> Add Project
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "education":
+        return (editMode || localData.education?.length > 0) && (
+          <div key="education" className="mb-8">
+            <SectionHeading title="Education" icon={GraduationCap} />
+            <div className="space-y-4">
+              {localData.education?.map((edu, i) => (
+                <div key={i} className="bg-blue-50/50 rounded-xl p-4 relative">
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("education", i)} 
+                      className="absolute top-2 right-2 text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={edu.degree} 
+                        onChange={(e) => handleNestedChange("education", i, "degree", e.target.value)} 
+                        className="w-full font-bold p-1 border rounded" 
+                      />
+                      <input 
+                        type="text" 
+                        value={edu.institution} 
+                        onChange={(e) => handleNestedChange("education", i, "institution", e.target.value)} 
+                        className="w-full p-1 border rounded" 
+                      />
+                      <input 
+                        type="text" 
+                        value={edu.duration} 
+                        onChange={(e) => handleNestedChange("education", i, "duration", e.target.value)} 
+                        className="w-full p-1 border rounded" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-bold text-gray-800">
+                        {edu.degree}
+                      </h3>
+                      <p className="text-blue-700 font-medium">
+                        {edu.institution}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {edu.duration}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("education", { degree: "", institution: "", duration: "" })} 
+                  className="text-blue-600 font-bold flex items-center gap-1 text-sm"
+                >
+                  <Plus size={14}/> Add Education
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "skills":
+        return (editMode || localData.skills?.length > 0) && (
+          <div key="skills" className="mb-8">
+            <SectionHeading title="Skills" icon={Award} />
+            {editMode ? (
+              <ChipInput 
+                chips={localData.skills} 
+                onChange={(newChips) => handleFieldChange("skills", newChips)} 
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {localData.skills?.map((skill, i) => (
+                  <span 
+                    key={i} 
+                    className="bg-blue-100 text-blue-800 px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case "certifications":
+        return (editMode || localData.certifications?.length > 0) && (
+          <div key="certifications" className="mb-8">
+            <SectionHeading title="Certifications" icon={Scroll} />
+            <div className="space-y-3">
+              {localData.certifications?.map((cert, i) => (
+                <div key={i} className="flex items-start gap-3 relative">
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("certifications", i)} 
+                      className="text-red-500 mt-1"
+                    >
+                      <Trash2 size={14}/>
+                    </button>
+                  )}
+                  <div>
+                    {editMode ? (
+                      <input 
+                        value={cert.title} 
+                        onChange={(e) => handleNestedChange("certifications", i, "title", e.target.value)} 
+                        className="font-bold border-b border-gray-300 outline-none" 
+                      />
+                    ) : (
+                      <p className="font-bold text-gray-800">
+                        {cert.title}
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-500">
+                      {cert.issuer} • {cert.date}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("certifications", { title: "", issuer: "", date: "" })} 
+                  className="text-blue-600 font-bold text-xs"
+                >
+                  + Add Cert
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case "achievements":
+        return (editMode || localData.achievements?.length > 0) && (
+          <div key="achievements" className="mb-8">
+            <SectionHeading title="Achievements" icon={Award} />
+            <ul className="list-disc list-inside space-y-2 text-gray-700">
+              {localData.achievements?.map((ach, i) => (
+                <li key={i} className="relative group">
+                  {editMode ? (
+                    <input 
+                      value={typeof ach === 'string' ? ach : ach.title} 
+                      onChange={(e) => {
+                        const newAch = [...localData.achievements];
+                        newAch[i] = e.target.value;
+                        handleFieldChange("achievements", newAch);
+                      }} 
+                      className="w-11/12 border-b border-gray-300 outline-none" 
+                    />
+                  ) : (
+                    <span>{typeof ach === 'string' ? ach : ach.title}</span>
+                  )}
+                  {editMode && (
+                    <button 
+                      onClick={() => handleRemoveItem("achievements", i)} 
+                      className="text-red-500 ml-2"
+                    >
+                      <Trash2 size={12}/>
+                    </button>
+                  )}
+                </li>
+              ))}
+              {editMode && (
+                <button 
+                  onClick={() => handleAddItem("achievements", "New Achievement")} 
+                  className="text-blue-600 font-bold text-xs"
+                >
+                  + Add Achievement
+                </button>
+              )}
+            </ul>
+          </div>
+        );
+
+      case "languages":
+        return (editMode || localData.languages?.length > 0) && (
+          <div key="languages" className="mb-8">
+            <SectionHeading title="Languages" icon={Globe} />
+            {editMode ? (
+              <ChipInput 
+                chips={localData.languages} 
+                onChange={(newChips) => handleFieldChange("languages", newChips)} 
+              />
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {localData.languages?.map((lang, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"/> 
+                    <span className="font-medium text-gray-700">{lang}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case "interests":
+        return (editMode || localData.interests?.length > 0) && (
+          <div key="interests" className="mb-8">
+            <SectionHeading title="Interests" icon={Heart} />
+            {editMode ? (
+              <ChipInput 
+                chips={localData.interests} 
+                onChange={(newChips) => handleFieldChange("interests", newChips)} 
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {localData.interests?.map((int, i) => (
+                  <span 
+                    key={i} 
+                    className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium"
+                  >
+                    {int}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      default: 
+        return null;
+    }
   };
-  const saveButtonStyle = { ...buttonStyle, backgroundColor: "#10b981", color: "white", marginRight: "0.5rem" };
-  const cancelButtonStyle = { ...buttonStyle, backgroundColor: "#6b7280", color: "white" };
-  const editButtonStyle = { ...buttonStyle, backgroundColor: "#3b82f6", color: "white" };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-100">
       <Navbar />
       <div className="flex">
-        <Sidebar templateKey="template15" onDownload={handleDownload} resumeRef={resumeRef} />
-        <div className="flex-1 p-6 pb-24"> 
-          <div className="max-w-7xl mx-auto">
-            <div className="w-full mt-8">
-              <div className="max-w-2xl mx-auto" hidden={!isEditing}>
-                <UserResumeEditForm formData={formData} setFormData={setFormData} />
-              </div>
-              <div hidden={isEditing}>
-                <UserResumePreview 
-                  ref={resumeRef} 
-                  data={resumeData} 
-                  themeColor="indigo" 
-                  zoomLevel={1} 
-                  sectionOrder={sectionOrder}
-                />
-              </div>
-            </div>
+        <Sidebar 
+          onDownload={handleDownload} 
+          onSave={handleSave} 
+          resumeRef={resumeRef} 
+        />
+        
+          {/* Undo/Redo Buttons */}
+          <div style={{position: "fixed", top: "80px", right: "20px", zIndex: 9999, display: "flex", gap: "8px"}} data-pdf-hide="true">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              style={{padding: "8px 16px", background: canUndo ? "#4f46e5" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canUndo ? "pointer" : "not-allowed"}}
+              title="Undo"
+            >
+              ↩ Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              style={{padding: "8px 16px", background: canRedo ? "#0891b2" : "#a5b4fc", color: "white", border: "none", borderRadius: "6px", cursor: canRedo ? "pointer" : "not-allowed"}}
+              title="Redo"
+            >
+              Redo ↪
+            </button>
+          </div>
+<div className="flex-grow p-8 flex flex-col items-center pb-24">
+          <div 
+            ref={resumeRef} 
+            style={{ 
+              fontFamily: templateSettings.fontFamily, 
+              backgroundColor: "#ffffff", 
+              borderRadius: "1rem", 
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)", 
+              maxWidth: "210mm", 
+              width: "100%", 
+              minHeight: "297mm" 
+            }}
+          >
             
-            {/* Floating Action Buttons at Bottom */}
-            <div style={{ 
-              position: "fixed", 
-              bottom: "30px", 
-              left: "50%", 
-              transform: "translateX(-50%)",
-              zIndex: 1000,
-              backgroundColor: "white",
-              padding: "1rem 2rem",
-              borderRadius: "50px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-              display: "flex",
-              gap: "1rem",
-              border: "1px solid #e5e7eb"
-            }}>
-              {isEditing ? (
-  <>
-    <button onClick={handleSave} style={saveButtonStyle}>Save</button>
-
-    <button
-      onClick={handleUndo}
-      disabled={!canUndo}
-      style={{
-        ...buttonStyle,
-        backgroundColor: canUndo ? "#f59e0b" : "#9ca3af",
-        color: "white"
-      }}
-    >
-      Undo
-    </button>
-
-    <button
-      onClick={handleRedo}
-      disabled={!canRedo}
-      style={{
-        ...buttonStyle,
-        backgroundColor: canRedo ? "#7c3aed" : "#9ca3af",
-        color: "white"
-      }}
-    >
-      Redo
-    </button>
-
-    <button onClick={handleCancel} style={cancelButtonStyle}>Cancel</button>
-  </>
-) : (
-  <button onClick={handleEdit} style={editButtonStyle}>Edit Resume</button>
-)}
+            {/* Header Section */}
+            <div 
+              style={{ 
+                background: "linear-gradient(to right, #2563eb, #1e40af)", 
+                color: "#ffffff", 
+                padding: "2.5rem" 
+              }} 
+              className="rounded-t-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  {editMode ? (
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        value={localData.name} 
+                        onChange={(e) => handleFieldChange("name", e.target.value)} 
+                        className="text-4xl font-bold bg-transparent border-b-2 border-white/30 w-full outline-none" 
+                      />
+                      <input 
+                        type="text" 
+                        value={localData.role} 
+                        onChange={(e) => handleFieldChange("role", e.target.value)} 
+                        className="text-xl text-blue-200 bg-transparent border-b-2 border-white/30 w-full outline-none" 
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <h1 className="text-4xl font-bold mb-2 tracking-tight">
+                        {localData.name}
+                      </h1>
+                      <p className="text-xl text-blue-100 font-medium">
+                        {localData.role}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className="relative group">
+                  <img 
+                    src={uploadedPhoto || templateSettings.photo} 
+                    alt="Profile" 
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover" 
+                  />
+                  {editMode && (
+                    <label 
+                      htmlFor="photo-upload" 
+                      className="absolute bottom-0 right-0 bg-white p-2 rounded-full text-blue-600 shadow-lg cursor-pointer"
+                    >
+                      <Plus size={20} />
+                      <input 
+                        id="photo-upload" 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handlePhotoChange} 
+                        className="hidden" 
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Contact Bar */}
+            <div className="bg-gray-800 text-white px-8 py-5 flex flex-wrap justify-between gap-4 text-sm shadow-inner">
+              <div className="flex items-center gap-2">
+                <Mail className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.email} 
+                    onChange={(e) => handleFieldChange("email", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <a href={`mailto:${localData.email}`} style={{color:"inherit"}} target="_blank" rel="noopener noreferrer">{localData.email}</a>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.phone} 
+                    onChange={(e) => handleFieldChange("phone", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <span>{localData.phone}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.location} 
+                    onChange={(e) => handleFieldChange("location", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <span>{localData.location}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Linkedin className="text-yellow-400" size={16} />
+                {editMode ? (
+                  <input 
+                    value={localData.linkedin} 
+                    onChange={(e) => handleFieldChange("linkedin", e.target.value)} 
+                    className="bg-transparent border-b border-gray-600" 
+                  />
+                ) : (
+                  <a href={(localData.linkedin && !/^https?:\/\//i.test(localData.linkedin)) ? `https://\${localData.linkedin} target="_blank" rel="noopener noreferrer"` : localData.linkedin} className="hover:underline">
+                    LinkedIn Profile
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* DYNAMIC BODY */}
+            <div className="p-10 space-y-2">
+              {sectionOrder.map((sectionKey) => (
+                <React.Fragment key={sectionKey}>
+                  {renderSection(sectionKey)}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-10 flex gap-6">
+            {editMode ? (
+              <>
+                <button 
+                  onClick={handleSave} 
+                  className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all"
+                >
+                  Save Changes
+                </button>
+                <button 
+                  onClick={handleCancel} 
+                  className="bg-gray-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-gray-600 transition-all"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={() => setEditMode(true)} 
+                className="bg-blue-600 text-white px-10 py-4 rounded-xl font-bold shadow-xl hover:bg-blue-700 transition-all transform hover:scale-105"
+              >
+                Edit Resume
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -838,4 +840,4 @@ const handleRedo = () => {
   );
 };
 
-export default Template15;
+export default Template13;
